@@ -258,6 +258,11 @@
         <option value="selected">Selected part (internal)</option>
         <option value="point_to_point">Point A to Point B (custom)</option>
       </select>
+      <label class="big" for="unitMode">Unit</label>
+      <select id="unitMode" disabled>
+        <option value="mm" selected>Millimeter (mm)</option>
+        <option value="inch">Inch (in)</option>
+      </select>
       <label class="toggle-row" for="snapVertex">
         <input id="snapVertex" type="checkbox" checked />
         Snap to nearest vertex (for A/B measure)
@@ -342,7 +347,8 @@ Axis helper:
       pickStage: 0,
       pointA: null,
       pointB: null,
-      snapToVertex: true
+      snapToVertex: true,
+      unit: 'mm'
     };
 
     const viewport = document.getElementById('viewport');
@@ -352,6 +358,7 @@ Axis helper:
     const fileInput = document.getElementById('fileInput');
     const measureBtn = document.getElementById('measureBtn');
     const measureMode = document.getElementById('measureMode');
+    const unitMode = document.getElementById('unitMode');
     const snapVertex = document.getElementById('snapVertex');
     const isolateSelectedBtn = document.getElementById('isolateSelectedBtn');
     const showAllBtn = document.getElementById('showAllBtn');
@@ -475,7 +482,7 @@ Axis helper:
         const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
         const up = new THREE.Vector3().crossVectors(dir, right).normalize();
         cameraCtrl.target.addScaledVector(right, -dx * panSpeed);
-        cameraCtrl.target.addScaledVector(up, -dy * panSpeed);
+        cameraCtrl.target.addScaledVector(up, dy * panSpeed);
       }
       updateCamera();
     });
@@ -607,8 +614,13 @@ Axis helper:
       statusEl.className = `status ${ok ? 'ok' : 'warn'}`;
     }
 
-    function mm(v) {
-      return `${v.toFixed(2)} mm`;
+    function unitSuffix() {
+      return state.unit === 'inch' ? 'in' : 'mm';
+    }
+
+    function formatLength(vMm) {
+      const val = state.unit === 'inch' ? (vMm / 25.4) : vMm;
+      return `${val.toFixed(3)} ${unitSuffix()}`;
     }
 
     function clearModel() {
@@ -820,6 +832,7 @@ Axis helper:
     function enableControls(enabled) {
       measureBtn.disabled = !enabled;
       measureMode.disabled = !enabled;
+      unitMode.disabled = !enabled;
       snapVertex.disabled = !enabled;
       isolateSelectedBtn.disabled = !enabled;
       showAllBtn.disabled = !enabled;
@@ -934,10 +947,10 @@ Axis helper:
       const diag = Math.sqrt(size.x ** 2 + size.y ** 2 + size.z ** 2);
       return [
         `Type: Global`,
-        `X: ${mm(size.x)}`,
-        `Y: ${mm(size.y)}`,
-        `Z: ${mm(size.z)}`,
-        `Diagonal: ${mm(diag)}`
+        `X: ${formatLength(size.x)}`,
+        `Y: ${formatLength(size.y)}`,
+        `Z: ${formatLength(size.z)}`,
+        `Diagonal: ${formatLength(diag)}`
       ].join('\n');
     }
 
@@ -952,10 +965,10 @@ Axis helper:
       return [
         'Type: Selected part',
         `Name: ${name}`,
-        `X: ${mm(size.x)}`,
-        `Y: ${mm(size.y)}`,
-        `Z: ${mm(size.z)}`,
-        `Diagonal: ${mm(diag)}`
+        `X: ${formatLength(size.x)}`,
+        `Y: ${formatLength(size.y)}`,
+        `Z: ${formatLength(size.z)}`,
+        `Diagonal: ${formatLength(diag)}`
       ].join('\n');
     }
 
@@ -964,7 +977,7 @@ Axis helper:
       const dist = state.pointA.distanceTo(state.pointB);
       return [
         'Type: Point A -> Point B',
-        `Distance: ${mm(dist)}`
+        `Distance: ${formatLength(dist)}`
       ].join('\n');
     }
 
@@ -1050,6 +1063,10 @@ Axis helper:
 
     snapVertex.addEventListener('change', () => {
       state.snapToVertex = !!snapVertex.checked;
+    });
+
+    unitMode.addEventListener('change', () => {
+      state.unit = unitMode.value === 'inch' ? 'inch' : 'mm';
     });
 
     enableControls(false);
