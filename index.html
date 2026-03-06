@@ -1,0 +1,1059 @@
+﻿<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>STEP Checker - Web Simple</title>
+  <style>
+    :root {
+      --bg: #0f141b;
+      --bg-2: #151d27;
+      --panel: #1b2430;
+      --panel-2: #222d3b;
+      --primary: #2f86c9;
+      --primary-2: #266fa8;
+      --text: #e7eef7;
+      --muted: #9fb1c5;
+      --line: #314153;
+      --ok: #46c37b;
+      --warn: #f3a84a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      color: var(--text);
+      background: radial-gradient(1200px 800px at 20% 0%, #1a2532, #0f141b 60%);
+      min-height: 100vh;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: minmax(320px, 420px) 1fr;
+      gap: 12px;
+      padding: 12px;
+      height: 100vh;
+    }
+    .panel {
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.38);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: auto;
+    }
+    .viewer {
+      background: linear-gradient(165deg, #0f151d, #0b1017);
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(116, 148, 180, 0.22);
+    }
+    #viewport { width: 100%; height: 100%; }
+    #axisWidget {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      width: 112px;
+      height: 112px;
+      border-radius: 10px;
+      background: rgba(18, 25, 33, 0.78);
+      border: 1px solid rgba(132, 162, 191, 0.28);
+      backdrop-filter: blur(2px);
+      pointer-events: none;
+      z-index: 4;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    }
+    #axisWidget canvas {
+      width: 112px !important;
+      height: 112px !important;
+      display: block;
+    }
+    .axis-label {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      opacity: 0.72;
+      text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+      user-select: none;
+    }
+    #axisLabelX { color: #c73d3d; }
+    #axisLabelY { color: #2f9f44; }
+    #axisLabelZ { color: #2f69c6; }
+    .confirm-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 8;
+    }
+    .confirm-card {
+      width: min(360px, 92%);
+      background: #1a2431;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
+    }
+    .confirm-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .confirm-text {
+      font-size: 0.92rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+      white-space: pre-line;
+    }
+    .confirm-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .btn-neutral {
+      border: 1px solid var(--line);
+      background: #243244;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      line-height: 1.1;
+    }
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.98rem;
+    }
+    .btn {
+      border: 0;
+      border-radius: 10px;
+      background: var(--primary);
+      color: white;
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 12px;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn:hover { background: var(--primary-2); }
+    .btn:disabled { background: #4f6172; cursor: not-allowed; color: #c9d8e6; }
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .btn-row-compact {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      font-size: 1rem;
+      background: var(--panel-2);
+      color: var(--text);
+    }
+    .box {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+      color: var(--muted);
+      margin-top: 2px;
+      margin-bottom: 2px;
+    }
+    .toggle-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary);
+    }
+    .status { font-weight: 700; }
+    .status.ok { color: var(--ok); }
+    .status.warn { color: var(--warn); }
+    .mono { font-family: Consolas, monospace; font-size: 0.92rem; }
+    .parts-list {
+      max-height: 180px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px;
+      background: #1a2230;
+    }
+    .part-row {
+      display: grid;
+      grid-template-columns: 20px 1fr;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 2px;
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+    .part-row input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: var(--primary);
+    }
+    .help {
+      margin: 0;
+      white-space: pre-line;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .big {
+      font-size: 1.08rem;
+      font-weight: 700;
+    }
+    #fileInput {
+      width: 100%;
+      padding: 8px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    #fileInput::file-selector-button {
+      border: 0;
+      border-radius: 8px;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 12px;
+      margin-right: 10px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .panel { max-height: 52vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="panel">
+      <h1>STEP Checker</h1>
+      <p class="subtitle">Simple STEP viewer for quick design checks.</p>
+
+      <label class="big" for="fileInput">1) Open a STEP file</label>
+      <input id="fileInput" type="file" accept=".step,.stp" />
+
+      <label class="big" for="measureMode">Measurement mode</label>
+      <select id="measureMode" disabled>
+        <option value="global">Global measure (full model)</option>
+        <option value="selected">Selected part (internal)</option>
+        <option value="point_to_point">Point A to Point B (custom)</option>
+      </select>
+      <label class="toggle-row" for="snapVertex">
+        <input id="snapVertex" type="checkbox" checked />
+        Snap to nearest vertex (for A/B measure)
+      </label>
+
+      <button id="measureBtn" class="btn" disabled>2) Measure</button>
+      <div class="btn-row-compact">
+        <button id="isolateSelectedBtn" class="btn" disabled>Isolate selected</button>
+        <button id="showAllBtn" class="btn" disabled>Show all</button>
+      </div>
+
+      <div class="box">
+        <div class="big">Components</div>
+        <div id="partsList" class="parts-list mono">No components loaded</div>
+      </div>
+
+      <div class="box">
+        <div id="status" class="status warn">Loading 3D engine...</div>
+        <div id="fileInfo" class="mono">No file loaded</div>
+      </div>
+
+      <div class="box">
+        <div class="big">Result</div>
+        <div id="result" class="mono">-</div>
+      </div>
+
+      <div class="box">
+        <p class="help">Mouse navigation:
+- Wheel: zoom
+- Left click drag: rotate
+- Right click drag: pan
+- Right click (no drag): hide part
+
+Selected part mode:
+- Click a part in the 3D view
+- Then click "Measure"
+
+Point A -> B mode:
+- Click "Measure"
+- Click point A, then point B in 3D
+- Snap can lock points to nearest vertex
+
+Axis helper:
+- Red = X
+- Green = Y
+- Blue = Z</p>
+      </div>
+    </aside>
+
+    <main class="viewer">
+      <div id="viewport"></div>
+      <div id="axisWidget" aria-hidden="true">
+        <span id="axisLabelX" class="axis-label">X</span>
+        <span id="axisLabelY" class="axis-label">Y</span>
+        <span id="axisLabelZ" class="axis-label">Z</span>
+      </div>
+      <div id="confirmOverlay" class="confirm-overlay" aria-hidden="true">
+        <div class="confirm-card">
+          <div class="confirm-title">Confirm Hide</div>
+          <div id="confirmText" class="confirm-text">Hide this part?</div>
+          <div class="confirm-actions">
+            <button id="confirmNoBtn" class="btn btn-neutral">Cancel</button>
+            <button id="confirmYesBtn" class="btn">Hide</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="./vendor/three.min.js"></script>
+  <script src="./vendor/occt-import-js.js"></script>
+  <script>
+
+    const state = {
+      occt: null,
+      loadedRoot: null,
+      meshes: [],
+      selectedMesh: null,
+      bounds: null,
+      fileName: '',
+      pickMode: false,
+      pickStage: 0,
+      pointA: null,
+      pointB: null,
+      snapToVertex: true
+    };
+
+    const viewport = document.getElementById('viewport');
+    const statusEl = document.getElementById('status');
+    const fileInfoEl = document.getElementById('fileInfo');
+    const resultEl = document.getElementById('result');
+    const fileInput = document.getElementById('fileInput');
+    const measureBtn = document.getElementById('measureBtn');
+    const measureMode = document.getElementById('measureMode');
+    const snapVertex = document.getElementById('snapVertex');
+    const isolateSelectedBtn = document.getElementById('isolateSelectedBtn');
+    const showAllBtn = document.getElementById('showAllBtn');
+    const partsList = document.getElementById('partsList');
+    const axisWidget = document.getElementById('axisWidget');
+    const axisLabelX = document.getElementById('axisLabelX');
+    const axisLabelY = document.getElementById('axisLabelY');
+    const axisLabelZ = document.getElementById('axisLabelZ');
+    const confirmOverlay = document.getElementById('confirmOverlay');
+    const confirmText = document.getElementById('confirmText');
+    const confirmYesBtn = document.getElementById('confirmYesBtn');
+    const confirmNoBtn = document.getElementById('confirmNoBtn');
+
+    if (!window.THREE || !window.occtimportjs) {
+      statusEl.textContent = 'Offline libs missing (vendor folder).';
+      resultEl.textContent = 'Missing files: vendor/three.min.js and vendor/occt-import-js.js (+ wasm files).';
+      throw new Error('Missing offline vendor libraries');
+    }
+
+    window.addEventListener('error', (ev) => {
+      setStatus('Blocking JavaScript error.');
+      resultEl.textContent = `JS ERROR: ${ev.message || 'unknown'}`;
+    });
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1118);
+
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 500000);
+    camera.position.set(350, 350, 350);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    viewport.appendChild(renderer.domElement);
+
+    const AXIS_WIDGET_SIZE = 112;
+    const axisRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    axisRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    axisRenderer.setSize(AXIS_WIDGET_SIZE, AXIS_WIDGET_SIZE);
+    axisWidget.prepend(axisRenderer.domElement);
+    const axisScene = new THREE.Scene();
+    const axisCamera = new THREE.PerspectiveCamera(45, 1, 0.01, 10);
+    axisCamera.position.set(0, 0, 3);
+    axisCamera.lookAt(0, 0, 0);
+    const axisGizmo = new THREE.AxesHelper(0.95);
+    axisScene.add(axisGizmo);
+
+    const cameraCtrl = {
+      target: new THREE.Vector3(0, 0, 0),
+      radius: 700,
+      theta: Math.PI / 4,
+      phi: Math.PI / 3
+    };
+
+    function updateCamera() {
+      const sinPhi = Math.sin(cameraCtrl.phi);
+      const x = cameraCtrl.target.x + cameraCtrl.radius * sinPhi * Math.cos(cameraCtrl.theta);
+      const y = cameraCtrl.target.y + cameraCtrl.radius * Math.cos(cameraCtrl.phi);
+      const z = cameraCtrl.target.z + cameraCtrl.radius * sinPhi * Math.sin(cameraCtrl.theta);
+      camera.position.set(x, y, z);
+      camera.lookAt(cameraCtrl.target);
+    }
+    updateCamera();
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x31465a, 1.1);
+    scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.75);
+    dir.position.set(1, 2, 2);
+    scene.add(dir);
+
+    const rootGroup = new THREE.Group();
+    scene.add(rootGroup);
+    const measurementGroup = new THREE.Group();
+    scene.add(measurementGroup);
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+
+    function resize() {
+      const w = viewport.clientWidth;
+      const h = viewport.clientHeight;
+      camera.aspect = w / Math.max(1, h);
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    let dragMode = null;
+    let lastX = 0;
+    let lastY = 0;
+    let mouseDownX = 0;
+    let mouseDownY = 0;
+    renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+    viewport.addEventListener('contextmenu', (e) => e.preventDefault());
+    axisWidget.addEventListener('contextmenu', (e) => e.preventDefault());
+    confirmOverlay.addEventListener('contextmenu', (e) => e.preventDefault());
+    renderer.domElement.addEventListener('mousedown', (e) => {
+      if (e.button === 0) dragMode = 'rotate';
+      else if (e.button === 2) dragMode = 'pan';
+      else return;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      mouseDownX = e.clientX;
+      mouseDownY = e.clientY;
+    });
+    window.addEventListener('mouseup', () => { dragMode = null; });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragMode) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+
+      if (dragMode === 'rotate') {
+        cameraCtrl.theta += dx * 0.008;
+        cameraCtrl.phi -= dy * 0.008;
+        cameraCtrl.phi = Math.max(0.08, Math.min(Math.PI - 0.08, cameraCtrl.phi));
+      } else if (dragMode === 'pan') {
+        const panSpeed = cameraCtrl.radius * 0.0012;
+        const dir = new THREE.Vector3().subVectors(camera.position, cameraCtrl.target).normalize();
+        const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+        const up = new THREE.Vector3().crossVectors(dir, right).normalize();
+        cameraCtrl.target.addScaledVector(right, -dx * panSpeed);
+        cameraCtrl.target.addScaledVector(up, -dy * panSpeed);
+      }
+      updateCamera();
+    });
+    renderer.domElement.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      cameraCtrl.radius = Math.max(0.1, cameraCtrl.radius * factor);
+      updateCamera();
+    }, { passive: false });
+    renderer.domElement.addEventListener('mouseup', (evt) => {
+      if (evt.button !== 2) return;
+      if (isDrag(evt, 5)) return;
+      if (!state.meshes.length) return;
+      const hit = pickHitFromEvent(evt);
+      if (!hit || !hit.object || !hit.object.visible) return;
+      const partName = hit.object.userData.partName || 'Part';
+      askHideConfirm(partName).then((ok) => {
+        if (!ok) {
+          setStatus('Hide canceled.');
+          return;
+        }
+        hideMesh(hit.object);
+        setStatus(`Part hidden: ${partName}`, true);
+      });
+    });
+
+    function isDrag(evt, thresholdPx) {
+      const dx = evt.clientX - mouseDownX;
+      const dy = evt.clientY - mouseDownY;
+      return ((dx * dx) + (dy * dy)) > (thresholdPx * thresholdPx);
+    }
+
+    function askHideConfirm(partName) {
+      return new Promise((resolve) => {
+        confirmText.textContent = `Hide this part?\n\n${partName}`;
+        confirmOverlay.style.display = 'flex';
+
+        const cleanup = () => {
+          confirmOverlay.style.display = 'none';
+          confirmYesBtn.removeEventListener('click', onYes);
+          confirmNoBtn.removeEventListener('click', onNo);
+          confirmOverlay.removeEventListener('click', onOverlayClick);
+        };
+        const onYes = () => {
+          cleanup();
+          resolve(true);
+        };
+        const onNo = () => {
+          cleanup();
+          resolve(false);
+        };
+        const onOverlayClick = (e) => {
+          if (e.target === confirmOverlay) {
+            onNo();
+          }
+        };
+        confirmYesBtn.addEventListener('click', onYes);
+        confirmNoBtn.addEventListener('click', onNo);
+        confirmOverlay.addEventListener('click', onOverlayClick);
+      });
+    }
+
+    renderer.domElement.addEventListener('click', (evt) => {
+      if (!state.meshes.length) return;
+      if (isDrag(evt, 5)) return;
+      const hit = pickHitFromEvent(evt);
+      if (!hit) return;
+      const point = snappedPointFromHit(hit);
+      if (!point) return;
+
+      if (state.pickMode) {
+        if (state.pickStage === 1) {
+          state.pointA = point;
+          state.pointB = null;
+          clearMeasurementVisuals();
+          addPointMarker(state.pointA, 0x2ec4b6);
+          state.pickStage = 2;
+          resultEl.textContent = 'Point A set. Click Point B.';
+          setStatus('Point A captured. Click point B.', true);
+          return;
+        }
+        if (state.pickStage === 2) {
+          state.pointB = point;
+          addPointMarker(state.pointB, 0xff6b6b);
+          addDistanceLine(state.pointA, state.pointB);
+          state.pickMode = false;
+          state.pickStage = 0;
+          resultEl.textContent = formatPointToPointResult();
+          setStatus('Point-to-point measurement done.', true);
+          return;
+        }
+      }
+
+      applySelection(hit.object);
+      setStatus(`Selected part: ${hit.object.userData.partName || 'Part'}`, true);
+    });
+
+    function animate() {
+      renderer.render(scene, camera);
+      renderAxisWidget();
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    function setAxisLabelPosition(labelEl, vec3) {
+      const projected = vec3.clone().project(axisCamera);
+      const px = (projected.x * 0.5 + 0.5) * AXIS_WIDGET_SIZE;
+      const py = (-projected.y * 0.5 + 0.5) * AXIS_WIDGET_SIZE;
+      labelEl.style.left = `${px}px`;
+      labelEl.style.top = `${py}px`;
+      const depthFade = 0.45 + ((-projected.z + 1) * 0.25);
+      labelEl.style.opacity = `${Math.max(0.35, Math.min(0.9, depthFade))}`;
+    }
+
+    function renderAxisWidget() {
+      axisGizmo.quaternion.copy(camera.quaternion).invert();
+      axisRenderer.render(axisScene, axisCamera);
+
+      const vx = new THREE.Vector3(1, 0, 0).applyQuaternion(axisGizmo.quaternion);
+      const vy = new THREE.Vector3(0, 1, 0).applyQuaternion(axisGizmo.quaternion);
+      const vz = new THREE.Vector3(0, 0, 1).applyQuaternion(axisGizmo.quaternion);
+      setAxisLabelPosition(axisLabelX, vx);
+      setAxisLabelPosition(axisLabelY, vy);
+      setAxisLabelPosition(axisLabelZ, vz);
+    }
+
+    function setStatus(text, ok = false) {
+      statusEl.textContent = text;
+      statusEl.className = `status ${ok ? 'ok' : 'warn'}`;
+    }
+
+    function mm(v) {
+      return `${v.toFixed(2)} mm`;
+    }
+
+    function clearModel() {
+      while (rootGroup.children.length) {
+        const child = rootGroup.children.pop();
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+      }
+      state.meshes = [];
+      state.selectedMesh = null;
+      state.bounds = null;
+      resetPointToPoint();
+      partsList.textContent = 'No components loaded';
+      resultEl.textContent = '-';
+    }
+
+    function clearMeasurementVisuals() {
+      while (measurementGroup.children.length) {
+        const child = measurementGroup.children.pop();
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+      }
+    }
+
+    function resetPointToPoint() {
+      state.pickMode = false;
+      state.pickStage = 0;
+      state.pointA = null;
+      state.pointB = null;
+      clearMeasurementVisuals();
+    }
+
+    function addPointMarker(position, colorHex) {
+      const geom = new THREE.SphereGeometry(Math.max(0.8, cameraCtrl.radius * 0.01), 18, 18);
+      const mat = new THREE.MeshStandardMaterial({ color: colorHex, emissive: colorHex, emissiveIntensity: 0.2 });
+      const marker = new THREE.Mesh(geom, mat);
+      marker.position.copy(position);
+      measurementGroup.add(marker);
+    }
+
+    function addDistanceLine(start, end) {
+      const geom = new THREE.BufferGeometry().setFromPoints([start, end]);
+      const mat = new THREE.LineBasicMaterial({ color: 0xffd166 });
+      const line = new THREE.Line(geom, mat);
+      measurementGroup.add(line);
+    }
+
+    function colorFrom(meshData) {
+      const c = meshData.color;
+      if (!c || c.length !== 3) return new THREE.Color(0xd8e6f6);
+      const base = new THREE.Color(c[0] / 255, c[1] / 255, c[2] / 255);
+      return base.lerp(new THREE.Color(0xffffff), 0.35);
+    }
+
+    function firstArray(obj, paths) {
+      for (const p of paths) {
+        let v = obj;
+        let ok = true;
+        for (const k of p) {
+          if (v && Object.prototype.hasOwnProperty.call(v, k)) {
+            v = v[k];
+          } else {
+            ok = false;
+            break;
+          }
+        }
+        if (ok && Array.isArray(v) && v.length) return v;
+        if (ok && ArrayBuffer.isView(v) && v.length) return Array.from(v);
+      }
+      return null;
+    }
+
+    function extractBuffers(meshData) {
+      // Format A: THREE-like structure
+      const posA = firstArray(meshData, [
+        ['attributes', 'position', 'array'],
+        ['position', 'array'],
+        ['positions']
+      ]);
+      const idxA = firstArray(meshData, [
+        ['index', 'array'],
+        ['indices'],
+        ['tri_indexes']
+      ]);
+      const nrmA = firstArray(meshData, [
+        ['attributes', 'normal', 'array'],
+        ['normal', 'array'],
+        ['normals']
+      ]);
+      if (posA && posA.length >= 9) {
+        return { pos: posA, idx: idxA, nrm: nrmA };
+      }
+
+      // Format B: brep_faces[]
+      const faces = meshData?.brep_faces;
+      if (Array.isArray(faces) && faces.length) {
+        const pos = [];
+        const nrm = [];
+        const idx = [];
+        let vertexOffset = 0;
+        for (const face of faces) {
+          const fPos = firstArray(face, [['vertex_coord'], ['positions']]);
+          if (!fPos || fPos.length < 9) continue;
+          const fNrm = firstArray(face, [['normal_coord'], ['normals']]);
+          const fIdx = firstArray(face, [['tri_indexes'], ['indices']]);
+
+          for (const v of fPos) pos.push(v);
+          if (fNrm && fNrm.length === fPos.length) {
+            for (const n of fNrm) nrm.push(n);
+          }
+          if (fIdx && fIdx.length >= 3) {
+            for (const ii of fIdx) idx.push(ii + vertexOffset);
+          } else {
+            // Fallback: consecutive triangles
+            const count = Math.floor(fPos.length / 3);
+            for (let i = 0; i + 2 < count; i += 3) {
+              idx.push(vertexOffset + i, vertexOffset + i + 1, vertexOffset + i + 2);
+            }
+          }
+          vertexOffset += Math.floor(fPos.length / 3);
+        }
+        if (pos.length >= 9) return { pos, idx: idx.length ? idx : null, nrm: nrm.length ? nrm : null };
+      }
+
+      return null;
+    }
+
+    function createMeshFromOcct(meshData, index) {
+      const buffers = extractBuffers(meshData);
+      if (!buffers) return null;
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(buffers.pos, 3));
+      if (buffers.idx && buffers.idx.length >= 3) geometry.setIndex(buffers.idx);
+      if (buffers.nrm && buffers.nrm.length === buffers.pos.length) {
+        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(buffers.nrm, 3));
+      } else {
+        geometry.computeVertexNormals();
+      }
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+
+      const material = new THREE.MeshStandardMaterial({
+        color: colorFrom(meshData),
+        roughness: 0.55,
+        metalness: 0.05,
+        side: THREE.DoubleSide
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.userData.partName = meshData.name || `Part ${index + 1}`;
+      mesh.userData.partIndex = index;
+      mesh.userData.originalColor = material.color.clone();
+      return mesh;
+    }
+
+    function fitAll() {
+      if (!state.bounds) return;
+      const center = state.bounds.getCenter(new THREE.Vector3());
+      const size = state.bounds.getSize(new THREE.Vector3());
+      const radius = Math.max(size.x, size.y, size.z) * 1.8 || 10;
+
+      cameraCtrl.target.copy(center);
+      cameraCtrl.radius = radius;
+      cameraCtrl.theta = Math.PI / 4;
+      cameraCtrl.phi = Math.PI / 3;
+      camera.near = Math.max(0.1, radius / 200);
+      camera.far = Math.max(1000, radius * 100);
+      camera.updateProjectionMatrix();
+      updateCamera();
+    }
+
+    function updateGlobalBounds() {
+      const box = new THREE.Box3();
+      state.meshes.forEach((m) => {
+        if (m.visible) box.expandByObject(m);
+      });
+      state.bounds = box.isEmpty() ? null : box;
+    }
+
+    function renderPartsList() {
+      if (!state.meshes.length) {
+        partsList.textContent = 'No components loaded';
+        return;
+      }
+      partsList.innerHTML = '';
+      state.meshes.forEach((mesh, i) => {
+        const row = document.createElement('label');
+        row.className = 'part-row';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = mesh.visible;
+        cb.addEventListener('change', () => {
+          mesh.visible = cb.checked;
+          if (!mesh.visible && state.selectedMesh === mesh) {
+            applySelection(null);
+          }
+          updateGlobalBounds();
+          renderer.render(scene, camera);
+        });
+        const txt = document.createElement('span');
+        txt.textContent = mesh.userData.partName || `Part ${i + 1}`;
+        row.appendChild(cb);
+        row.appendChild(txt);
+        partsList.appendChild(row);
+      });
+    }
+
+    function enableControls(enabled) {
+      measureBtn.disabled = !enabled;
+      measureMode.disabled = !enabled;
+      snapVertex.disabled = !enabled;
+      isolateSelectedBtn.disabled = !enabled;
+      showAllBtn.disabled = !enabled;
+    }
+
+    function applySelection(mesh) {
+      if (state.selectedMesh && state.selectedMesh.material) {
+        state.selectedMesh.material.color.copy(state.selectedMesh.userData.originalColor);
+      }
+      state.selectedMesh = mesh;
+      if (mesh && mesh.material) {
+        mesh.material.color.set(0xff8a00);
+      }
+    }
+
+    function hideMesh(mesh) {
+      if (!mesh) return;
+      mesh.visible = false;
+      if (state.selectedMesh === mesh) {
+        applySelection(null);
+      }
+      updateGlobalBounds();
+      renderPartsList();
+      renderer.render(scene, camera);
+    }
+
+    async function initOcct() {
+      try {
+        const locateBase = './vendor/';
+        state.occt = await window.occtimportjs({
+          locateFile: (file) => locateBase + file
+        });
+        setStatus('3D engine ready. Open a STEP file.', true);
+      } catch (err) {
+        console.error(err);
+        setStatus('3D engine failed to load (offline libs).');
+        resultEl.textContent = [
+          'STARTUP ERROR',
+          '- Failed to load STEP engine',
+          '- Check local vendor files',
+          '- Missing JS/WASM in ./vendor'
+        ].join('\n');
+      }
+    }
+
+    async function loadStepFile(file) {
+      if (!state.occt) {
+        setStatus('Engine not ready. If this persists, CDN is likely blocked.');
+        return;
+      }
+      setStatus('Reading STEP file...');
+      clearModel();
+      let result = null;
+      try {
+        const arr = new Uint8Array(await file.arrayBuffer());
+        result = state.occt.ReadStepFile(arr, {
+          linearUnit: 'millimeter',
+          linearDeflectionType: 'bounding_box_ratio',
+          linearDeflection: 0.001,
+          angularDeflection: 0.5
+        });
+      } catch (err) {
+        console.error(err);
+        setStatus('STEP read error.');
+        resultEl.textContent = [
+          'READ ERROR',
+          `File: ${file.name}`,
+          'This parser cannot read this STEP file.',
+          'Try another STEP file or desktop build.'
+        ].join('\n');
+        enableControls(false);
+        return;
+      }
+
+      if (!result || !result.success || !Array.isArray(result.meshes) || result.meshes.length === 0) {
+        setStatus('Read failed: STEP is unsupported or empty.');
+        enableControls(false);
+        return;
+      }
+
+      result.meshes.forEach((meshData, i) => {
+        const mesh = createMeshFromOcct(meshData, i);
+        if (!mesh) return;
+        rootGroup.add(mesh);
+        state.meshes.push(mesh);
+      });
+
+      if (!state.meshes.length) {
+        setStatus('File read, but no displayable geometry.');
+        resultEl.textContent = [
+          'NO GEOMETRY',
+          `File: ${file.name}`,
+          'File read succeeded, but no usable triangles were found.'
+        ].join('\n');
+        enableControls(false);
+        return;
+      }
+
+      updateGlobalBounds();
+      fitAll();
+
+      state.fileName = file.name;
+      fileInfoEl.textContent = `${file.name} | ${state.meshes.length} part(s)`;
+      setStatus('File loaded. You can rotate/zoom/measure.', true);
+      renderPartsList();
+      enableControls(true);
+    }
+
+    function measureGlobal() {
+      if (!state.bounds) return 'Model is empty.';
+      const size = state.bounds.getSize(new THREE.Vector3());
+      const diag = Math.sqrt(size.x ** 2 + size.y ** 2 + size.z ** 2);
+      return [
+        `Type: Global`,
+        `X: ${mm(size.x)}`,
+        `Y: ${mm(size.y)}`,
+        `Z: ${mm(size.z)}`,
+        `Diagonal: ${mm(diag)}`
+      ].join('\n');
+    }
+
+    function measureSelected() {
+      if (!state.selectedMesh) {
+        return 'Selection required: click a part in the 3D view, then click Measure again.';
+      }
+      const box = new THREE.Box3().setFromObject(state.selectedMesh);
+      const size = box.getSize(new THREE.Vector3());
+      const diag = Math.sqrt(size.x ** 2 + size.y ** 2 + size.z ** 2);
+      const name = state.selectedMesh.userData.partName || 'Part';
+      return [
+        'Type: Selected part',
+        `Name: ${name}`,
+        `X: ${mm(size.x)}`,
+        `Y: ${mm(size.y)}`,
+        `Z: ${mm(size.z)}`,
+        `Diagonal: ${mm(diag)}`
+      ].join('\n');
+    }
+
+    function formatPointToPointResult() {
+      if (!state.pointA || !state.pointB) return 'Pick two points in the 3D model.';
+      const dist = state.pointA.distanceTo(state.pointB);
+      return [
+        'Type: Point A -> Point B',
+        `Distance: ${mm(dist)}`
+      ].join('\n');
+    }
+
+    function pickHitFromEvent(evt) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((evt.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      return raycaster.intersectObjects(state.meshes, false)[0] || null;
+    }
+
+    function snappedPointFromHit(hit) {
+      if (!hit) return null;
+      if (!state.snapToVertex) return hit.point.clone();
+
+      const geom = hit.object?.geometry;
+      const posAttr = geom?.attributes?.position;
+      const face = hit.face;
+      if (!geom || !posAttr || !face) return hit.point.clone();
+
+      const va = new THREE.Vector3().fromBufferAttribute(posAttr, face.a);
+      const vb = new THREE.Vector3().fromBufferAttribute(posAttr, face.b);
+      const vc = new THREE.Vector3().fromBufferAttribute(posAttr, face.c);
+      hit.object.localToWorld(va);
+      hit.object.localToWorld(vb);
+      hit.object.localToWorld(vc);
+
+      const p = hit.point;
+      const da = p.distanceToSquared(va);
+      const db = p.distanceToSquared(vb);
+      const dc = p.distanceToSquared(vc);
+      if (da <= db && da <= dc) return va;
+      if (db <= da && db <= dc) return vb;
+      return vc;
+    }
+
+
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      await loadStepFile(file);
+    });
+
+    isolateSelectedBtn.addEventListener('click', () => {
+      if (!state.selectedMesh) {
+        setStatus('Select a part first, then click Isolate selected.');
+        return;
+      }
+      state.meshes.forEach((m) => { m.visible = (m === state.selectedMesh); });
+      updateGlobalBounds();
+      renderPartsList();
+      renderer.render(scene, camera);
+      setStatus('Selected part isolated.', true);
+    });
+
+    showAllBtn.addEventListener('click', () => {
+      state.meshes.forEach((m) => { m.visible = true; });
+      updateGlobalBounds();
+      renderPartsList();
+      renderer.render(scene, camera);
+      setStatus('All parts are visible.', true);
+    });
+
+    measureBtn.addEventListener('click', () => {
+      const mode = measureMode.value;
+      if (mode === 'global') {
+        resetPointToPoint();
+        resultEl.textContent = measureGlobal();
+        return;
+      }
+      if (mode === 'selected') {
+        resetPointToPoint();
+        resultEl.textContent = measureSelected();
+        return;
+      }
+      // point_to_point
+      resetPointToPoint();
+      state.pickMode = true;
+      state.pickStage = 1;
+      resultEl.textContent = 'Point-to-point mode: click Point A in the 3D view.';
+      setStatus('Point-to-point mode active. Click point A.', true);
+    });
+
+    snapVertex.addEventListener('change', () => {
+      state.snapToVertex = !!snapVertex.checked;
+    });
+
+    enableControls(false);
+    initOcct();
+  </script>
+</body>
+</html>
