@@ -88,7 +88,7 @@
     .mode-group {
       position: absolute;
       left: 50%;
-      bottom: 34px;
+      bottom: 12px;
       transform: translateX(-50%);
       z-index: 5;
       width: 330px;
@@ -135,6 +135,30 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .snapshot-tools {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      z-index: 6;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 190px;
+    }
+    .snapshot-tools .btn {
+      width: 100%;
+    }
+    .snapshot-main {
+      padding: 13px 14px;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .snapshot-icon {
+      margin-right: 8px;
+      font-size: 18px;
+      vertical-align: -1px;
     }
     .mini-guide {
       position: absolute;
@@ -204,7 +228,7 @@
     }
     .unit-float {
       position: absolute;
-      top: 506px;
+      top: 494px;
       right: 62px;
       z-index: 5;
       display: inline-flex;
@@ -330,7 +354,7 @@
       .measure-hud { top: 336px; right: 8px; max-width: 74vw; min-width: 220px; }
       .global-hud { top: 146px; right: 8px; max-width: 74vw; min-width: 220px; }
       .unit-float { top: 548px; right: 33px; width: 170px; }
-      .mode-group { bottom: 34px; width: 300px; }
+      .mode-group { bottom: 12px; width: 300px; }
       .mini-guide { top: 8px; max-width: 240px; }
       .side-tools {
         top: auto;
@@ -368,11 +392,11 @@ Selected mode: click a part to display measurements
     </div>
 
     <div class="measure-hud">
-      <div class="measure-title">Part Measurements</div>
+      <div class="measure-title">Part Dimensions</div>
       <pre id="measureText">-</pre>
     </div>
     <div class="global-hud">
-      <div class="measure-title">Global Measurements</div>
+      <div class="measure-title">Global Dimensions</div>
       <pre id="globalText">-</pre>
     </div>
     <div class="unit-float">
@@ -404,6 +428,10 @@ Selected mode: click a part to display measurements
     </div>
 
     <div id="statusPill" class="status-pill">Loading 3D engine...</div>
+    <div class="snapshot-tools">
+      <button id="snapshotDimsBtn" class="btn ghost" disabled>Dims ON</button>
+      <button id="snapshotBtn" class="btn active snapshot-main" disabled><span class="snapshot-icon">&#128247;</span>Snapshot PNG</button>
+    </div>
 
     <div id="confirmOverlay" class="confirm-overlay" aria-hidden="true">
       <div class="confirm-card">
@@ -433,7 +461,8 @@ Selected mode: click a part to display measurements
       snapToVertex: true,
       axisConstraint: 'none',
       unit: 'mm',
-      measureMode: 'selected'
+      measureMode: 'selected',
+      snapshotIncludeDims: true
     };
 
     const viewport = document.getElementById('viewport');
@@ -455,6 +484,8 @@ Selected mode: click a part to display measurements
     const isolateBtn = document.getElementById('isolateBtn');
     const hideBtn = document.getElementById('hideBtn');
     const showAllBtn = document.getElementById('showAllBtn');
+    const snapshotDimsBtn = document.getElementById('snapshotDimsBtn');
+    const snapshotBtn = document.getElementById('snapshotBtn');
     const axisWidget = document.getElementById('axisWidget');
     const axisLabelX = document.getElementById('axisLabelX');
     const axisLabelY = document.getElementById('axisLabelY');
@@ -492,6 +523,22 @@ Selected mode: click a part to display measurements
       return `${val.toFixed(decimals)} ${unitSuffix()}`;
     }
 
+    function fileStem(name) {
+      if (!name) return 'step_viewer';
+      return name.replace(/\.[^/.]+$/, '').replace(/[^\w.-]+/g, '_');
+    }
+
+    function toCleanLines(text) {
+      return String(text || '')
+        .split('\n')
+        .map((s) => s.trim())
+        .filter((s) => s && s !== '-');
+    }
+
+    function removeDiagonalLines(lines) {
+      return (lines || []).filter((line) => !/^diagonal\s*:/i.test(line));
+    }
+
     function setMode(mode) {
       state.measureMode = mode;
       [modeSelected, modeAB].forEach((b) => b.classList.remove('active'));
@@ -526,6 +573,12 @@ Selected mode: click a part to display measurements
       conX.classList.toggle('active', axis === 'x');
       conY.classList.toggle('active', axis === 'y');
       conZ.classList.toggle('active', axis === 'z');
+    }
+
+    function setSnapshotDims(enabled) {
+      state.snapshotIncludeDims = !!enabled;
+      snapshotDimsBtn.classList.toggle('active', state.snapshotIncludeDims);
+      snapshotDimsBtn.textContent = state.snapshotIncludeDims ? 'Dims ON' : 'Dims OFF';
     }
 
     function applyAxisConstraint(point) {
@@ -824,9 +877,88 @@ Selected mode: click a part to display measurements
     }
 
     function setUiEnabled(enabled) {
-      [modeSelected, modeAB, unitMM, unitIN, snapBtn, conNone, conX, conY, conZ, isolateBtn, hideBtn, showAllBtn].forEach((el) => { el.disabled = !enabled; });
+      [modeSelected, modeAB, unitMM, unitIN, snapBtn, conNone, conX, conY, conZ, isolateBtn, hideBtn, showAllBtn, snapshotDimsBtn, snapshotBtn].forEach((el) => { el.disabled = !enabled; });
       if (!enabled) measureBtn.disabled = true;
       openBtn.disabled = !state.occt;
+    }
+
+    function downloadSnapshotPng() {
+      if (!state.meshes.length) {
+        setStatus('Load a STEP file before snapshot.');
+        return;
+      }
+
+      const size = renderer.getSize(new THREE.Vector2());
+      const pxRatio = renderer.getPixelRatio();
+      const w = Math.max(1, Math.floor(size.x * pxRatio));
+      const h = Math.max(1, Math.floor(size.y * pxRatio));
+
+      const snapRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+      snapRenderer.setPixelRatio(pxRatio);
+      snapRenderer.setSize(size.x, size.y, false);
+
+      const oldBg = scene.background;
+      scene.background = null;
+      snapRenderer.render(scene, camera);
+      scene.background = oldBg;
+
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = w;
+      outCanvas.height = h;
+      const ctx = outCanvas.getContext('2d');
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(snapRenderer.domElement, 0, 0, w, h);
+      snapRenderer.dispose();
+
+      const unitLabel = state.unit === 'inch' ? 'inch' : 'mm';
+      const globalLines = removeDiagonalLines(toCleanLines(globalText.textContent));
+      const partLines = removeDiagonalLines(toCleanLines(measureText.textContent));
+      const includeAnyDimensions = !!state.snapshotIncludeDims;
+      const includePartDimensions = includeAnyDimensions && !!state.selectedMesh;
+      const pad = Math.max(16, Math.round(w * 0.016));
+      const titleSize = Math.max(20, Math.round(w * 0.016));
+      const bodySize = Math.max(16, Math.round(w * 0.012));
+      const lineGap = Math.round(bodySize * 1.35);
+
+      ctx.textBaseline = 'top';
+      ctx.shadowColor = 'rgba(0,0,0,0.55)';
+      ctx.shadowBlur = Math.max(4, Math.round(w * 0.003));
+
+      let y = pad;
+      if (includeAnyDimensions) {
+        ctx.fillStyle = 'rgba(235,245,255,0.95)';
+        ctx.font = `700 ${titleSize}px Segoe UI, Arial, sans-serif`;
+        ctx.fillText(`Global Dimensions (${unitLabel})`, pad, y);
+        y += lineGap;
+
+        ctx.fillStyle = 'rgba(219,233,247,0.95)';
+        ctx.font = `600 ${bodySize}px Consolas, monospace`;
+        globalLines.forEach((line) => {
+          ctx.fillText(line, pad, y);
+          y += lineGap;
+        });
+      }
+
+      if (includePartDimensions) {
+        y += Math.round(lineGap * 0.55);
+        ctx.fillStyle = 'rgba(235,245,255,0.95)';
+        ctx.font = `700 ${titleSize}px Segoe UI, Arial, sans-serif`;
+        ctx.fillText(`Part Dimensions (${unitLabel})`, pad, y);
+        y += lineGap;
+
+        ctx.fillStyle = 'rgba(219,233,247,0.95)';
+        ctx.font = `600 ${bodySize}px Consolas, monospace`;
+        partLines.forEach((line) => {
+          ctx.fillText(line, pad, y);
+          y += lineGap;
+        });
+      }
+
+      const link = document.createElement('a');
+      link.href = outCanvas.toDataURL('image/png');
+      link.download = `${fileStem(state.fileName)}_snapshot.png`;
+      link.click();
+      setStatus('Snapshot PNG saved.');
     }
 
     function applySelection(mesh) {
@@ -1015,7 +1147,14 @@ Selected mode: click a part to display measurements
       if (!state.meshes.length) return;
       if (isDrag(evt, 5)) return;
       const hit = pickHitFromEvent(evt);
-      if (!hit) return;
+      if (!hit) {
+        if (!state.pickMode) {
+          applySelection(null);
+          if (state.measureMode === 'selected') setMeasure('Select a part to display measurements.');
+          setStatus('Selection cleared.');
+        }
+        return;
+      }
       const point = snappedPointFromHit(hit);
       if (!point) return;
 
@@ -1106,6 +1245,13 @@ Selected mode: click a part to display measurements
       setStatus('All parts visible.');
     });
 
+    snapshotBtn.addEventListener('click', () => {
+      downloadSnapshotPng();
+    });
+    snapshotDimsBtn.addEventListener('click', () => {
+      setSnapshotDims(!state.snapshotIncludeDims);
+    });
+
     measureBtn.addEventListener('click', () => {
       if (state.measureMode !== 'point_to_point') return;
 
@@ -1123,6 +1269,7 @@ Selected mode: click a part to display measurements
 
     setUiEnabled(false);
     setConstraint('none');
+    setSnapshotDims(true);
     setMeasure('Open a STEP file to start.');
     initOcct();
   </script>
