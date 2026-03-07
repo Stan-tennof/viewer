@@ -138,7 +138,7 @@
     }
     .mini-guide {
       position: absolute;
-      top: 38px;
+      top: 12px;
       left: 12px;
       z-index: 5;
       max-width: 280px;
@@ -331,7 +331,7 @@
       .global-hud { top: 146px; right: 8px; max-width: 74vw; min-width: 220px; }
       .unit-float { top: 548px; right: 33px; width: 170px; }
       .mode-group { bottom: 34px; width: 300px; }
-      .mini-guide { top: 84px; max-width: 240px; }
+      .mini-guide { top: 8px; max-width: 240px; }
       .side-tools {
         top: auto;
         bottom: 180px;
@@ -488,7 +488,8 @@ Selected mode: click a part to display measurements
 
     function formatLength(vMm) {
       const val = state.unit === 'inch' ? (vMm / 25.4) : vMm;
-      return `${val.toFixed(1)} ${unitSuffix()}`;
+      const decimals = state.unit === 'inch' ? 2 : 1;
+      return `${val.toFixed(decimals)} ${unitSuffix()}`;
     }
 
     function setMode(mode) {
