@@ -136,13 +136,37 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .mini-guide {
+      position: absolute;
+      top: 38px;
+      left: 12px;
+      z-index: 5;
+      max-width: 280px;
+      padding: 0;
+    }
+    .mini-guide-title {
+      font-size: 15px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: rgba(122, 139, 155, 0.30);
+      margin-bottom: 6px;
+      font-weight: 700;
+      display: none;
+    }
+    .mini-guide-text {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.35;
+      color: rgba(124, 142, 160, 0.26);
+      white-space: pre-line;
+    }
 
     .measure-hud {
       position: absolute;
       top: 300px;
       right: 12px;
-      min-width: 300px;
-      max-width: min(520px, 64vw);
+      min-width: 270px;
+      max-width: min(460px, 58vw);
       border: 1px solid var(--line);
       border-radius: 14px;
       background: rgba(10, 18, 27, 0.84);
@@ -154,8 +178,8 @@
       position: absolute;
       top: 110px;
       right: 12px;
-      min-width: 300px;
-      max-width: min(520px, 64vw);
+      min-width: 270px;
+      max-width: min(460px, 58vw);
       border: 1px solid var(--line);
       border-radius: 14px;
       background: rgba(10, 18, 27, 0.7);
@@ -222,6 +246,9 @@
     }
     .mode-row-single {
       grid-template-columns: 1fr;
+    }
+    .mode-row-4 {
+      grid-template-columns: repeat(4, 1fr);
     }
     .mode-group .mode-row .btn {
       width: 100%;
@@ -300,10 +327,11 @@
         max-width: none;
       }
       .brand { width: 100%; margin-bottom: 4px; }
-      .measure-hud { top: 336px; right: 8px; max-width: 78vw; min-width: 240px; }
-      .global-hud { top: 146px; right: 8px; max-width: 78vw; min-width: 240px; }
+      .measure-hud { top: 336px; right: 8px; max-width: 74vw; min-width: 220px; }
+      .global-hud { top: 146px; right: 8px; max-width: 74vw; min-width: 220px; }
       .unit-float { top: 548px; right: 43px; width: 170px; }
       .mode-group { bottom: 34px; width: 300px; }
+      .mini-guide { top: 84px; max-width: 240px; }
       .side-tools {
         top: auto;
         bottom: 180px;
@@ -322,6 +350,16 @@
       <button id="openBtn" class="btn active">Open STEP</button>
       <input id="fileInput" type="file" accept=".step,.stp" />
 
+    </div>
+    <div class="mini-guide">
+      <div class="mini-guide-title">Quick Guide</div>
+      <p class="mini-guide-text">Open STEP
+Left drag: rotate
+Right drag: pan
+Wheel: zoom
+Right click: hide part
+Selected mode: click a part to display measurements
+2 points mode: choose Free/X/Y/Z, click Measure, then pick A and B</p>
     </div>
     <div class="side-tools">
       <button id="isolateBtn" class="btn" disabled>Isolate</button>
@@ -347,6 +385,12 @@
         <button id="modeSelected" class="btn active" disabled>Selected</button>
         <button id="modeAB" class="btn" disabled>2 points</button>
         <button id="snapBtn" class="btn active" disabled>Snap</button>
+      </div>
+      <div class="mode-row mode-row-4">
+        <button id="conNone" class="btn active" disabled>Free</button>
+        <button id="conX" class="btn" disabled>X</button>
+        <button id="conY" class="btn" disabled>Y</button>
+        <button id="conZ" class="btn" disabled>Z</button>
       </div>
       <div class="mode-row mode-row-single">
         <button id="measureBtn" class="btn measure-inline" disabled>Measure</button>
@@ -387,6 +431,7 @@
       pointA: null,
       pointB: null,
       snapToVertex: true,
+      axisConstraint: 'none',
       unit: 'mm',
       measureMode: 'selected'
     };
@@ -403,6 +448,10 @@
     const unitMM = document.getElementById('unitMM');
     const unitIN = document.getElementById('unitIN');
     const snapBtn = document.getElementById('snapBtn');
+    const conNone = document.getElementById('conNone');
+    const conX = document.getElementById('conX');
+    const conY = document.getElementById('conY');
+    const conZ = document.getElementById('conZ');
     const isolateBtn = document.getElementById('isolateBtn');
     const hideBtn = document.getElementById('hideBtn');
     const showAllBtn = document.getElementById('showAllBtn');
@@ -439,7 +488,7 @@
 
     function formatLength(vMm) {
       const val = state.unit === 'inch' ? (vMm / 25.4) : vMm;
-      return `${val.toFixed(3)} ${unitSuffix()}`;
+      return `${val.toFixed(1)} ${unitSuffix()}`;
     }
 
     function setMode(mode) {
@@ -468,6 +517,31 @@
     function setSnap(enabled) {
       state.snapToVertex = !!enabled;
       snapBtn.classList.toggle('active', state.snapToVertex);
+    }
+
+    function setConstraint(axis) {
+      state.axisConstraint = axis;
+      conNone.classList.toggle('active', axis === 'none');
+      conX.classList.toggle('active', axis === 'x');
+      conY.classList.toggle('active', axis === 'y');
+      conZ.classList.toggle('active', axis === 'z');
+    }
+
+    function applyAxisConstraint(point) {
+      if (!point || !state.pointA) return point;
+      if (state.axisConstraint === 'none') return point;
+      const constrained = point.clone();
+      if (state.axisConstraint === 'x') {
+        constrained.y = state.pointA.y;
+        constrained.z = state.pointA.z;
+      } else if (state.axisConstraint === 'y') {
+        constrained.x = state.pointA.x;
+        constrained.z = state.pointA.z;
+      } else if (state.axisConstraint === 'z') {
+        constrained.x = state.pointA.x;
+        constrained.y = state.pointA.y;
+      }
+      return constrained;
     }
 
     const scene = new THREE.Scene();
@@ -749,7 +823,7 @@
     }
 
     function setUiEnabled(enabled) {
-      [modeSelected, modeAB, unitMM, unitIN, snapBtn, isolateBtn, hideBtn, showAllBtn].forEach((el) => { el.disabled = !enabled; });
+      [modeSelected, modeAB, unitMM, unitIN, snapBtn, conNone, conX, conY, conZ, isolateBtn, hideBtn, showAllBtn].forEach((el) => { el.disabled = !enabled; });
       if (!enabled) measureBtn.disabled = true;
       openBtn.disabled = !state.occt;
     }
@@ -956,7 +1030,7 @@
           return;
         }
         if (state.pickStage === 2) {
-          state.pointB = point;
+          state.pointB = applyAxisConstraint(point);
           addPointMarker(state.pointB, 0xff6b6b);
           addDistanceLine(state.pointA, state.pointB);
           state.pickMode = false;
@@ -998,6 +1072,10 @@
     });
 
     snapBtn.addEventListener('click', () => setSnap(!state.snapToVertex));
+    conNone.addEventListener('click', () => setConstraint('none'));
+    conX.addEventListener('click', () => setConstraint('x'));
+    conY.addEventListener('click', () => setConstraint('y'));
+    conZ.addEventListener('click', () => setConstraint('z'));
 
     isolateBtn.addEventListener('click', () => {
       if (!state.selectedMesh) {
@@ -1043,6 +1121,7 @@
     });
 
     setUiEnabled(false);
+    setConstraint('none');
     setMeasure('Open a STEP file to start.');
     initOcct();
   </script>
