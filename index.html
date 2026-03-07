@@ -1,66 +1,255 @@
 ﻿<!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>STEP Checker - Web Simple</title>
+  <title>STEP Viewer</title>
   <style>
     :root {
-      --bg: #0f141b;
-      --bg-2: #151d27;
-      --panel: #1b2430;
-      --panel-2: #222d3b;
-      --primary: #2f86c9;
-      --primary-2: #266fa8;
-      --text: #e7eef7;
-      --muted: #9fb1c5;
-      --line: #314153;
-      --ok: #46c37b;
-      --warn: #f3a84a;
+      --bg: #0a0f15;
+      --bg-2: #111a25;
+      --panel: rgba(17, 26, 37, 0.78);
+      --line: rgba(130, 163, 194, 0.22);
+      --text: #eaf2fb;
+      --muted: #99afc5;
+      --primary: #3a9df2;
+      --ok: #49d38e;
+      --warn: #f5b457;
+      --danger: #ff6f6f;
     }
     * { box-sizing: border-box; }
-    body {
+    html, body {
       margin: 0;
-      font-family: "Segoe UI", Tahoma, sans-serif;
+      width: 100%;
+      height: 100%;
+      font-family: "Segoe UI", Inter, system-ui, sans-serif;
       color: var(--text);
-      background: radial-gradient(1200px 800px at 20% 0%, #1a2532, #0f141b 60%);
-      min-height: 100vh;
+      background: radial-gradient(1200px 700px at 15% 0%, #162334 0%, var(--bg) 58%);
+      overflow: hidden;
     }
-    .app {
-      display: grid;
-      grid-template-columns: minmax(320px, 420px) 1fr;
-      gap: 12px;
-      padding: 12px;
-      height: 100vh;
+    .viewer-shell {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(165deg, #0f151d, #090d13);
     }
-    .panel {
+    #viewport {
+      position: absolute;
+      inset: 0;
+    }
+
+    .topbar {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+      padding: 14px 16px;
       background: var(--panel);
+      border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 14px;
-      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(8px);
+      z-index: 5;
+      width: fit-content;
+      max-width: calc(100% - 24px);
+    }
+    .brand {
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin-right: 6px;
+      color: #dbe9f8;
+    }
+    .group {
+      display: inline-flex;
+      gap: 10px;
+      padding: 7px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(15, 24, 34, 0.62);
+      backdrop-filter: blur(6px);
+    }
+    .group-stack {
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      overflow: auto;
+      gap: 4px;
+      padding: 6px;
     }
-    .viewer {
-      background: linear-gradient(165deg, #0f151d, #0b1017);
+    .group-title {
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+      text-align: center;
+    }
+    .mode-group {
+      position: absolute;
+      left: 50%;
+      bottom: 34px;
+      transform: translateX(-50%);
+      z-index: 5;
+      width: 330px;
+    }
+    .group-right {
+      margin-left: auto;
+    }
+    .btn {
+      border: 1px solid var(--line);
+      background: #1b2734;
+      color: var(--text);
       border-radius: 12px;
-      overflow: hidden;
-      position: relative;
-      box-shadow: inset 0 0 0 1px rgba(116, 148, 180, 0.22);
+      font-size: 15px;
+      font-weight: 600;
+      padding: 11px 14px;
+      cursor: pointer;
+      transition: all .15s ease;
     }
-    #viewport { width: 100%; height: 100%; }
-    #axisWidget {
+    .btn:hover { border-color: #5f85a8; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn.active {
+      background: linear-gradient(180deg, #2f8fe0, #2679bf);
+      border-color: #56aaf5;
+      color: #fff;
+    }
+    .btn.ghost { background: #16212d; }
+    .btn.warn { border-color: rgba(245, 180, 87, 0.45); }
+
+    #fileInput { display: none; }
+
+    .status-pill {
       position: absolute;
       left: 12px;
       bottom: 12px;
+      max-width: 58vw;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 12px;
+      z-index: 4;
+      backdrop-filter: blur(6px);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .measure-hud {
+      position: absolute;
+      top: 300px;
+      right: 12px;
+      min-width: 300px;
+      max-width: min(520px, 64vw);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(10, 18, 27, 0.84);
+      padding: 14px 16px;
+      z-index: 4;
+      backdrop-filter: blur(8px);
+    }
+    .global-hud {
+      position: absolute;
+      top: 110px;
+      right: 12px;
+      min-width: 300px;
+      max-width: min(520px, 64vw);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(10, 18, 27, 0.7);
+      padding: 12px 14px;
+      z-index: 4;
+      backdrop-filter: blur(8px);
+    }
+    .measure-title {
+      font-size: 15px;
+      color: #8eb0d1;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    #measureText, #globalText {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.4;
+      white-space: pre-line;
+      color: var(--text);
+      font-family: Consolas, monospace;
+    }
+    .unit-float {
+      position: absolute;
+      top: 506px;
+      right: 77px;
+      z-index: 5;
+      display: inline-flex;
+      gap: 8px;
+      padding: 8px;
+      width: 170px;
+      justify-content: center;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(8px);
+    }
+    .side-tools {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      backdrop-filter: blur(8px);
+      width: 150px;
+    }
+    .side-tools .btn {
+      width: 100%;
+      text-align: center;
+    }
+    .mode-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      align-items: center;
+      width: 100%;
+    }
+    .mode-row-single {
+      grid-template-columns: 1fr;
+    }
+    .mode-group .mode-row .btn {
+      width: 100%;
+      padding: 12px 10px;
+      font-size: 16px;
+      border-radius: 11px;
+    }
+    .measure-inline {
+      min-width: 0;
+      width: 100%;
+      padding: 12px 12px;
+      border-radius: 10px;
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(180deg, #2f8fe0, #2679bf);
+      border-color: #56aaf5;
+      color: #fff;
+    }
+
+    #axisWidget {
+      position: absolute;
+      left: 12px;
+      bottom: 52px;
       width: 112px;
       height: 112px;
       border-radius: 10px;
-      background: rgba(18, 25, 33, 0.78);
-      border: 1px solid rgba(132, 162, 191, 0.28);
-      backdrop-filter: blur(2px);
+      background: rgba(13, 20, 30, 0.75);
+      border: 1px solid var(--line);
       pointer-events: none;
       z-index: 4;
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
@@ -75,14 +264,14 @@
       transform: translate(-50%, -50%);
       font-size: 14px;
       font-weight: 700;
-      letter-spacing: 0.02em;
-      opacity: 0.72;
+      opacity: 0.82;
       text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
       user-select: none;
     }
-    #axisLabelX { color: #c73d3d; }
-    #axisLabelY { color: #2f9f44; }
-    #axisLabelZ { color: #2f69c6; }
+    #axisLabelX { color: #ea5757; }
+    #axisLabelY { color: #58d06d; }
+    #axisLabelZ { color: #5f9bff; }
+
     .confirm-overlay {
       position: absolute;
       inset: 0;
@@ -100,245 +289,95 @@
       padding: 12px;
       box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
     }
-    .confirm-title {
-      font-size: 1rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-    .confirm-text {
-      font-size: 0.92rem;
-      color: var(--muted);
-      margin-bottom: 12px;
-      white-space: pre-line;
-    }
-    .confirm-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-    .btn-neutral {
-      border: 1px solid var(--line);
-      background: #243244;
-    }
-    h1 {
-      margin: 0;
-      font-size: 1.5rem;
-      line-height: 1.1;
-    }
-    .subtitle {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.98rem;
-    }
-    .btn {
-      border: 0;
-      border-radius: 10px;
-      background: var(--primary);
-      color: white;
-      font-size: 1rem;
-      font-weight: 700;
-      padding: 12px;
-      cursor: pointer;
-      text-align: center;
-    }
-    .btn:hover { background: var(--primary-2); }
-    .btn:disabled { background: #4f6172; cursor: not-allowed; color: #c9d8e6; }
-    .btn-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-    .btn-row-compact {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-    select {
-      width: 100%;
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid var(--line);
-      font-size: 1rem;
-      background: var(--panel-2);
-      color: var(--text);
-    }
-    .box {
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-    }
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.95rem;
-      color: var(--muted);
-      margin-top: 2px;
-      margin-bottom: 2px;
-    }
-    .toggle-row input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      accent-color: var(--primary);
-    }
-    .status { font-weight: 700; }
-    .status.ok { color: var(--ok); }
-    .status.warn { color: var(--warn); }
-    .mono { font-family: Consolas, monospace; font-size: 0.92rem; }
-    .parts-list {
-      max-height: 180px;
-      overflow: auto;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 6px;
-      background: #1a2230;
-    }
-    .part-row {
-      display: grid;
-      grid-template-columns: 20px 1fr;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 2px;
-      font-size: 0.9rem;
-      color: var(--text);
-    }
-    .part-row input[type="checkbox"] {
-      width: 14px;
-      height: 14px;
-      accent-color: var(--primary);
-    }
-    .help {
-      margin: 0;
-      white-space: pre-line;
-      color: var(--muted);
-      line-height: 1.4;
-    }
-    .big {
-      font-size: 1.08rem;
-      font-weight: 700;
-    }
-    #fileInput {
-      width: 100%;
-      padding: 8px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: var(--panel-2);
-      color: var(--text);
-      font-size: 0.95rem;
-    }
-    #fileInput::file-selector-button {
-      border: 0;
-      border-radius: 8px;
-      background: var(--primary);
-      color: #fff;
-      padding: 8px 12px;
-      margin-right: 10px;
-      font-weight: 700;
-      cursor: pointer;
-    }
+    .confirm-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+    .confirm-text { font-size: 13px; color: var(--muted); margin-bottom: 12px; white-space: pre-line; }
+    .confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
     @media (max-width: 980px) {
-      .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-      .panel { max-height: 52vh; }
+      .topbar {
+        gap: 6px;
+        width: calc(100% - 16px);
+        max-width: none;
+      }
+      .brand { width: 100%; margin-bottom: 4px; }
+      .measure-hud { top: 336px; right: 8px; max-width: 78vw; min-width: 240px; }
+      .global-hud { top: 146px; right: 8px; max-width: 78vw; min-width: 240px; }
+      .unit-float { top: 548px; right: 43px; width: 170px; }
+      .mode-group { bottom: 34px; width: 300px; }
+      .side-tools {
+        top: auto;
+        bottom: 180px;
+        transform: none;
+      }
+      .status-pill { max-width: 85vw; }
     }
   </style>
 </head>
 <body>
-  <div class="app">
-    <aside class="panel">
-      <h1>STEP Checker</h1>
-      <p class="subtitle">Simple STEP viewer for quick design checks.</p>
+  <div class="viewer-shell">
+    <div id="viewport"></div>
 
-      <label class="big" for="fileInput">1) Open a STEP file</label>
+    <div class="topbar">
+      <span class="brand">STEP Viewer</span>
+      <button id="openBtn" class="btn active">Open STEP</button>
       <input id="fileInput" type="file" accept=".step,.stp" />
 
-      <label class="big" for="measureMode">Measurement mode</label>
-      <select id="measureMode" disabled>
-        <option value="global">Global measure (full model)</option>
-        <option value="selected">Selected part (internal)</option>
-        <option value="point_to_point">Point A to Point B (custom)</option>
-      </select>
-      <label class="big" for="unitMode">Unit</label>
-      <select id="unitMode" disabled>
-        <option value="mm" selected>Millimeter (mm)</option>
-        <option value="inch">Inch (in)</option>
-      </select>
-      <label class="toggle-row" for="snapVertex">
-        <input id="snapVertex" type="checkbox" checked />
-        Snap to nearest vertex (for A/B measure)
-      </label>
+    </div>
+    <div class="side-tools">
+      <button id="isolateBtn" class="btn" disabled>Isolate</button>
+      <button id="hideBtn" class="btn" disabled>Hide</button>
+      <button id="showAllBtn" class="btn" disabled>Show all</button>
+    </div>
 
-      <button id="measureBtn" class="btn" disabled>2) Measure</button>
-      <div class="btn-row-compact">
-        <button id="isolateSelectedBtn" class="btn" disabled>Isolate selected</button>
-        <button id="showAllBtn" class="btn" disabled>Show all</button>
+    <div class="measure-hud">
+      <div class="measure-title">Part Measurements</div>
+      <pre id="measureText">-</pre>
+    </div>
+    <div class="global-hud">
+      <div class="measure-title">Global Measurements</div>
+      <pre id="globalText">-</pre>
+    </div>
+    <div class="unit-float">
+      <button id="unitMM" class="btn active" disabled>mm</button>
+      <button id="unitIN" class="btn" disabled>inch</button>
+    </div>
+    <div class="group group-stack mode-group">
+      <span class="group-title">Measurement mode</span>
+      <div class="mode-row">
+        <button id="modeSelected" class="btn active" disabled>Selected</button>
+        <button id="modeAB" class="btn" disabled>2 points</button>
+        <button id="snapBtn" class="btn active" disabled>Snap</button>
       </div>
-
-      <div class="box">
-        <div class="big">Components</div>
-        <div id="partsList" class="parts-list mono">No components loaded</div>
+      <div class="mode-row mode-row-single">
+        <button id="measureBtn" class="btn measure-inline" disabled>Measure</button>
       </div>
+    </div>
 
-      <div class="box">
-        <div id="status" class="status warn">Loading 3D engine...</div>
-        <div id="fileInfo" class="mono">No file loaded</div>
-      </div>
+    <div id="axisWidget" aria-hidden="true">
+      <span id="axisLabelX" class="axis-label">X</span>
+      <span id="axisLabelY" class="axis-label">Y</span>
+      <span id="axisLabelZ" class="axis-label">Z</span>
+    </div>
 
-      <div class="box">
-        <div class="big">Result</div>
-        <div id="result" class="mono">-</div>
-      </div>
+    <div id="statusPill" class="status-pill">Loading 3D engine...</div>
 
-      <div class="box">
-        <p class="help">Mouse navigation:
-- Wheel: zoom
-- Left click drag: rotate
-- Right click drag: pan
-- Right click (no drag): hide part
-
-Selected part mode:
-- Click a part in the 3D view
-- Then click "Measure"
-
-Point A -> B mode:
-- Click "Measure"
-- Click point A, then point B in 3D
-- Snap can lock points to nearest vertex
-
-Axis helper:
-- Red = X
-- Green = Y
-- Blue = Z</p>
-      </div>
-    </aside>
-
-    <main class="viewer">
-      <div id="viewport"></div>
-      <div id="axisWidget" aria-hidden="true">
-        <span id="axisLabelX" class="axis-label">X</span>
-        <span id="axisLabelY" class="axis-label">Y</span>
-        <span id="axisLabelZ" class="axis-label">Z</span>
-      </div>
-      <div id="confirmOverlay" class="confirm-overlay" aria-hidden="true">
-        <div class="confirm-card">
-          <div class="confirm-title">Confirm Hide</div>
-          <div id="confirmText" class="confirm-text">Hide this part?</div>
-          <div class="confirm-actions">
-            <button id="confirmNoBtn" class="btn btn-neutral">Cancel</button>
-            <button id="confirmYesBtn" class="btn">Hide</button>
-          </div>
+    <div id="confirmOverlay" class="confirm-overlay" aria-hidden="true">
+      <div class="confirm-card">
+        <div class="confirm-title">Confirm Hide</div>
+        <div id="confirmText" class="confirm-text">Hide this part?</div>
+        <div class="confirm-actions">
+          <button id="confirmNoBtn" class="btn">Cancel</button>
+          <button id="confirmYesBtn" class="btn active">Hide</button>
         </div>
       </div>
-    </main>
+    </div>
   </div>
 
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/occt-import-js.js"></script>
   <script>
-
     const state = {
       occt: null,
-      loadedRoot: null,
       meshes: [],
       selectedMesh: null,
       bounds: null,
@@ -348,21 +387,25 @@ Axis helper:
       pointA: null,
       pointB: null,
       snapToVertex: true,
-      unit: 'mm'
+      unit: 'mm',
+      measureMode: 'selected'
     };
 
     const viewport = document.getElementById('viewport');
-    const statusEl = document.getElementById('status');
-    const fileInfoEl = document.getElementById('fileInfo');
-    const resultEl = document.getElementById('result');
+    const statusPill = document.getElementById('statusPill');
+    const measureText = document.getElementById('measureText');
+    const globalText = document.getElementById('globalText');
     const fileInput = document.getElementById('fileInput');
+    const openBtn = document.getElementById('openBtn');
+    const modeSelected = document.getElementById('modeSelected');
+    const modeAB = document.getElementById('modeAB');
     const measureBtn = document.getElementById('measureBtn');
-    const measureMode = document.getElementById('measureMode');
-    const unitMode = document.getElementById('unitMode');
-    const snapVertex = document.getElementById('snapVertex');
-    const isolateSelectedBtn = document.getElementById('isolateSelectedBtn');
+    const unitMM = document.getElementById('unitMM');
+    const unitIN = document.getElementById('unitIN');
+    const snapBtn = document.getElementById('snapBtn');
+    const isolateBtn = document.getElementById('isolateBtn');
+    const hideBtn = document.getElementById('hideBtn');
     const showAllBtn = document.getElementById('showAllBtn');
-    const partsList = document.getElementById('partsList');
     const axisWidget = document.getElementById('axisWidget');
     const axisLabelX = document.getElementById('axisLabelX');
     const axisLabelY = document.getElementById('axisLabelY');
@@ -373,15 +416,59 @@ Axis helper:
     const confirmNoBtn = document.getElementById('confirmNoBtn');
 
     if (!window.THREE || !window.occtimportjs) {
-      statusEl.textContent = 'Offline libs missing (vendor folder).';
-      resultEl.textContent = 'Missing files: vendor/three.min.js and vendor/occt-import-js.js (+ wasm files).';
+      statusPill.textContent = 'Offline libs missing in ./vendor';
+      measureText.textContent = 'Missing: three.min.js / occt-import-js.js / wasm';
       throw new Error('Missing offline vendor libraries');
     }
 
-    window.addEventListener('error', (ev) => {
-      setStatus('Blocking JavaScript error.');
-      resultEl.textContent = `JS ERROR: ${ev.message || 'unknown'}`;
-    });
+    function setStatus(text) {
+      statusPill.textContent = text;
+    }
+
+    function setMeasure(lines) {
+      measureText.textContent = Array.isArray(lines) ? lines.join('\n') : String(lines || '-');
+    }
+
+    function setGlobal(lines) {
+      globalText.textContent = Array.isArray(lines) ? lines.join('\n') : String(lines || '-');
+    }
+
+    function unitSuffix() {
+      return state.unit === 'inch' ? 'in' : 'mm';
+    }
+
+    function formatLength(vMm) {
+      const val = state.unit === 'inch' ? (vMm / 25.4) : vMm;
+      return `${val.toFixed(3)} ${unitSuffix()}`;
+    }
+
+    function setMode(mode) {
+      state.measureMode = mode;
+      [modeSelected, modeAB].forEach((b) => b.classList.remove('active'));
+      if (mode === 'selected') modeSelected.classList.add('active');
+      if (mode === 'point_to_point') modeAB.classList.add('active');
+      resetPointToPoint();
+      if (mode === 'point_to_point') {
+        measureBtn.disabled = false;
+        setStatus('Mode: A-B');
+      } else {
+        measureBtn.disabled = true;
+        setStatus('Mode: selected');
+        if (state.selectedMesh) setMeasure(measureSelected());
+        else setMeasure('Select a part to display measurements.');
+      }
+    }
+
+    function setUnit(unit) {
+      state.unit = unit;
+      unitMM.classList.toggle('active', unit === 'mm');
+      unitIN.classList.toggle('active', unit === 'inch');
+    }
+
+    function setSnap(enabled) {
+      state.snapToVertex = !!enabled;
+      snapBtn.classList.toggle('active', state.snapToVertex);
+    }
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0b1118);
@@ -422,9 +509,8 @@ Axis helper:
     }
     updateCamera();
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x31465a, 1.1);
-    scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 0.75);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x31465a, 1.08));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.72);
     dir.position.set(1, 2, 2);
     scene.add(dir);
 
@@ -451,10 +537,12 @@ Axis helper:
     let lastY = 0;
     let mouseDownX = 0;
     let mouseDownY = 0;
+
     renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
     viewport.addEventListener('contextmenu', (e) => e.preventDefault());
     axisWidget.addEventListener('contextmenu', (e) => e.preventDefault());
     confirmOverlay.addEventListener('contextmenu', (e) => e.preventDefault());
+
     renderer.domElement.addEventListener('mousedown', (e) => {
       if (e.button === 0) dragMode = 'rotate';
       else if (e.button === 2) dragMode = 'pan';
@@ -464,7 +552,9 @@ Axis helper:
       mouseDownX = e.clientX;
       mouseDownY = e.clientY;
     });
+
     window.addEventListener('mouseup', () => { dragMode = null; });
+
     window.addEventListener('mousemove', (e) => {
       if (!dragMode) return;
       const dx = e.clientX - lastX;
@@ -478,107 +568,27 @@ Axis helper:
         cameraCtrl.phi = Math.max(0.08, Math.min(Math.PI - 0.08, cameraCtrl.phi));
       } else if (dragMode === 'pan') {
         const panSpeed = cameraCtrl.radius * 0.0012;
-        const dir = new THREE.Vector3().subVectors(camera.position, cameraCtrl.target).normalize();
-        const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
-        const up = new THREE.Vector3().crossVectors(dir, right).normalize();
+        const dirVec = new THREE.Vector3().subVectors(camera.position, cameraCtrl.target).normalize();
+        const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dirVec).normalize();
+        const up = new THREE.Vector3().crossVectors(dirVec, right).normalize();
         cameraCtrl.target.addScaledVector(right, -dx * panSpeed);
         cameraCtrl.target.addScaledVector(up, dy * panSpeed);
       }
       updateCamera();
     });
+
     renderer.domElement.addEventListener('wheel', (e) => {
       e.preventDefault();
       const factor = e.deltaY > 0 ? 1.1 : 0.9;
       cameraCtrl.radius = Math.max(0.1, cameraCtrl.radius * factor);
       updateCamera();
     }, { passive: false });
-    renderer.domElement.addEventListener('mouseup', (evt) => {
-      if (evt.button !== 2) return;
-      if (isDrag(evt, 5)) return;
-      if (!state.meshes.length) return;
-      const hit = pickHitFromEvent(evt);
-      if (!hit || !hit.object || !hit.object.visible) return;
-      const partName = hit.object.userData.partName || 'Part';
-      askHideConfirm(partName).then((ok) => {
-        if (!ok) {
-          setStatus('Hide canceled.');
-          return;
-        }
-        hideMesh(hit.object);
-        setStatus(`Part hidden: ${partName}`, true);
-      });
-    });
 
     function isDrag(evt, thresholdPx) {
       const dx = evt.clientX - mouseDownX;
       const dy = evt.clientY - mouseDownY;
       return ((dx * dx) + (dy * dy)) > (thresholdPx * thresholdPx);
     }
-
-    function askHideConfirm(partName) {
-      return new Promise((resolve) => {
-        confirmText.textContent = `Hide this part?\n\n${partName}`;
-        confirmOverlay.style.display = 'flex';
-
-        const cleanup = () => {
-          confirmOverlay.style.display = 'none';
-          confirmYesBtn.removeEventListener('click', onYes);
-          confirmNoBtn.removeEventListener('click', onNo);
-          confirmOverlay.removeEventListener('click', onOverlayClick);
-        };
-        const onYes = () => {
-          cleanup();
-          resolve(true);
-        };
-        const onNo = () => {
-          cleanup();
-          resolve(false);
-        };
-        const onOverlayClick = (e) => {
-          if (e.target === confirmOverlay) {
-            onNo();
-          }
-        };
-        confirmYesBtn.addEventListener('click', onYes);
-        confirmNoBtn.addEventListener('click', onNo);
-        confirmOverlay.addEventListener('click', onOverlayClick);
-      });
-    }
-
-    renderer.domElement.addEventListener('click', (evt) => {
-      if (!state.meshes.length) return;
-      if (isDrag(evt, 5)) return;
-      const hit = pickHitFromEvent(evt);
-      if (!hit) return;
-      const point = snappedPointFromHit(hit);
-      if (!point) return;
-
-      if (state.pickMode) {
-        if (state.pickStage === 1) {
-          state.pointA = point;
-          state.pointB = null;
-          clearMeasurementVisuals();
-          addPointMarker(state.pointA, 0x2ec4b6);
-          state.pickStage = 2;
-          resultEl.textContent = 'Point A set. Click Point B.';
-          setStatus('Point A captured. Click point B.', true);
-          return;
-        }
-        if (state.pickStage === 2) {
-          state.pointB = point;
-          addPointMarker(state.pointB, 0xff6b6b);
-          addDistanceLine(state.pointA, state.pointB);
-          state.pickMode = false;
-          state.pickStage = 0;
-          resultEl.textContent = formatPointToPointResult();
-          setStatus('Point-to-point measurement done.', true);
-          return;
-        }
-      }
-
-      applySelection(hit.object);
-      setStatus(`Selected part: ${hit.object.userData.partName || 'Part'}`, true);
-    });
 
     function animate() {
       renderer.render(scene, camera);
@@ -600,27 +610,9 @@ Axis helper:
     function renderAxisWidget() {
       axisGizmo.quaternion.copy(camera.quaternion).invert();
       axisRenderer.render(axisScene, axisCamera);
-
-      const vx = new THREE.Vector3(1, 0, 0).applyQuaternion(axisGizmo.quaternion);
-      const vy = new THREE.Vector3(0, 1, 0).applyQuaternion(axisGizmo.quaternion);
-      const vz = new THREE.Vector3(0, 0, 1).applyQuaternion(axisGizmo.quaternion);
-      setAxisLabelPosition(axisLabelX, vx);
-      setAxisLabelPosition(axisLabelY, vy);
-      setAxisLabelPosition(axisLabelZ, vz);
-    }
-
-    function setStatus(text, ok = false) {
-      statusEl.textContent = text;
-      statusEl.className = `status ${ok ? 'ok' : 'warn'}`;
-    }
-
-    function unitSuffix() {
-      return state.unit === 'inch' ? 'in' : 'mm';
-    }
-
-    function formatLength(vMm) {
-      const val = state.unit === 'inch' ? (vMm / 25.4) : vMm;
-      return `${val.toFixed(3)} ${unitSuffix()}`;
+      setAxisLabelPosition(axisLabelX, new THREE.Vector3(1, 0, 0).applyQuaternion(axisGizmo.quaternion));
+      setAxisLabelPosition(axisLabelY, new THREE.Vector3(0, 1, 0).applyQuaternion(axisGizmo.quaternion));
+      setAxisLabelPosition(axisLabelZ, new THREE.Vector3(0, 0, 1).applyQuaternion(axisGizmo.quaternion));
     }
 
     function clearModel() {
@@ -633,8 +625,7 @@ Axis helper:
       state.selectedMesh = null;
       state.bounds = null;
       resetPointToPoint();
-      partsList.textContent = 'No components loaded';
-      resultEl.textContent = '-';
+      setMeasure('-');
     }
 
     function clearMeasurementVisuals() {
@@ -664,8 +655,7 @@ Axis helper:
     function addDistanceLine(start, end) {
       const geom = new THREE.BufferGeometry().setFromPoints([start, end]);
       const mat = new THREE.LineBasicMaterial({ color: 0xffd166 });
-      const line = new THREE.Line(geom, mat);
-      measurementGroup.add(line);
+      measurementGroup.add(new THREE.Line(geom, mat));
     }
 
     function colorFrom(meshData) {
@@ -680,12 +670,8 @@ Axis helper:
         let v = obj;
         let ok = true;
         for (const k of p) {
-          if (v && Object.prototype.hasOwnProperty.call(v, k)) {
-            v = v[k];
-          } else {
-            ok = false;
-            break;
-          }
+          if (v && Object.prototype.hasOwnProperty.call(v, k)) v = v[k];
+          else { ok = false; break; }
         }
         if (ok && Array.isArray(v) && v.length) return v;
         if (ok && ArrayBuffer.isView(v) && v.length) return Array.from(v);
@@ -694,85 +680,49 @@ Axis helper:
     }
 
     function extractBuffers(meshData) {
-      // Format A: THREE-like structure
-      const posA = firstArray(meshData, [
-        ['attributes', 'position', 'array'],
-        ['position', 'array'],
-        ['positions']
-      ]);
-      const idxA = firstArray(meshData, [
-        ['index', 'array'],
-        ['indices'],
-        ['tri_indexes']
-      ]);
-      const nrmA = firstArray(meshData, [
-        ['attributes', 'normal', 'array'],
-        ['normal', 'array'],
-        ['normals']
-      ]);
-      if (posA && posA.length >= 9) {
-        return { pos: posA, idx: idxA, nrm: nrmA };
-      }
+      const posA = firstArray(meshData, [['attributes','position','array'], ['position','array'], ['positions']]);
+      const idxA = firstArray(meshData, [['index','array'], ['indices'], ['tri_indexes']]);
+      const nrmA = firstArray(meshData, [['attributes','normal','array'], ['normal','array'], ['normals']]);
+      if (posA && posA.length >= 9) return { pos: posA, idx: idxA, nrm: nrmA };
 
-      // Format B: brep_faces[]
       const faces = meshData?.brep_faces;
       if (Array.isArray(faces) && faces.length) {
-        const pos = [];
-        const nrm = [];
-        const idx = [];
+        const pos = []; const nrm = []; const idx = [];
         let vertexOffset = 0;
         for (const face of faces) {
           const fPos = firstArray(face, [['vertex_coord'], ['positions']]);
           if (!fPos || fPos.length < 9) continue;
           const fNrm = firstArray(face, [['normal_coord'], ['normals']]);
           const fIdx = firstArray(face, [['tri_indexes'], ['indices']]);
-
           for (const v of fPos) pos.push(v);
-          if (fNrm && fNrm.length === fPos.length) {
-            for (const n of fNrm) nrm.push(n);
-          }
-          if (fIdx && fIdx.length >= 3) {
-            for (const ii of fIdx) idx.push(ii + vertexOffset);
-          } else {
-            // Fallback: consecutive triangles
+          if (fNrm && fNrm.length === fPos.length) for (const n of fNrm) nrm.push(n);
+          if (fIdx && fIdx.length >= 3) for (const ii of fIdx) idx.push(ii + vertexOffset);
+          else {
             const count = Math.floor(fPos.length / 3);
-            for (let i = 0; i + 2 < count; i += 3) {
-              idx.push(vertexOffset + i, vertexOffset + i + 1, vertexOffset + i + 2);
-            }
+            for (let i = 0; i + 2 < count; i += 3) idx.push(vertexOffset + i, vertexOffset + i + 1, vertexOffset + i + 2);
           }
           vertexOffset += Math.floor(fPos.length / 3);
         }
         if (pos.length >= 9) return { pos, idx: idx.length ? idx : null, nrm: nrm.length ? nrm : null };
       }
-
       return null;
     }
 
     function createMeshFromOcct(meshData, index) {
       const buffers = extractBuffers(meshData);
       if (!buffers) return null;
-
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(buffers.pos, 3));
       if (buffers.idx && buffers.idx.length >= 3) geometry.setIndex(buffers.idx);
       if (buffers.nrm && buffers.nrm.length === buffers.pos.length) {
         geometry.setAttribute('normal', new THREE.Float32BufferAttribute(buffers.nrm, 3));
-      } else {
-        geometry.computeVertexNormals();
-      }
+      } else geometry.computeVertexNormals();
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
 
-      const material = new THREE.MeshStandardMaterial({
-        color: colorFrom(meshData),
-        roughness: 0.55,
-        metalness: 0.05,
-        side: THREE.DoubleSide
-      });
-
+      const material = new THREE.MeshStandardMaterial({ color: colorFrom(meshData), roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData.partName = meshData.name || `Part ${index + 1}`;
-      mesh.userData.partIndex = index;
       mesh.userData.originalColor = material.color.clone();
       return mesh;
     }
@@ -782,7 +732,6 @@ Axis helper:
       const center = state.bounds.getCenter(new THREE.Vector3());
       const size = state.bounds.getSize(new THREE.Vector3());
       const radius = Math.max(size.x, size.y, size.z) * 1.8 || 10;
-
       cameraCtrl.target.copy(center);
       cameraCtrl.radius = radius;
       cameraCtrl.theta = Math.PI / 4;
@@ -795,47 +744,14 @@ Axis helper:
 
     function updateGlobalBounds() {
       const box = new THREE.Box3();
-      state.meshes.forEach((m) => {
-        if (m.visible) box.expandByObject(m);
-      });
+      state.meshes.forEach((m) => { if (m.visible) box.expandByObject(m); });
       state.bounds = box.isEmpty() ? null : box;
     }
 
-    function renderPartsList() {
-      if (!state.meshes.length) {
-        partsList.textContent = 'No components loaded';
-        return;
-      }
-      partsList.innerHTML = '';
-      state.meshes.forEach((mesh, i) => {
-        const row = document.createElement('label');
-        row.className = 'part-row';
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = mesh.visible;
-        cb.addEventListener('change', () => {
-          mesh.visible = cb.checked;
-          if (!mesh.visible && state.selectedMesh === mesh) {
-            applySelection(null);
-          }
-          updateGlobalBounds();
-          renderer.render(scene, camera);
-        });
-        const txt = document.createElement('span');
-        txt.textContent = mesh.userData.partName || `Part ${i + 1}`;
-        row.appendChild(cb);
-        row.appendChild(txt);
-        partsList.appendChild(row);
-      });
-    }
-
-    function enableControls(enabled) {
-      measureBtn.disabled = !enabled;
-      measureMode.disabled = !enabled;
-      unitMode.disabled = !enabled;
-      snapVertex.disabled = !enabled;
-      isolateSelectedBtn.disabled = !enabled;
-      showAllBtn.disabled = !enabled;
+    function setUiEnabled(enabled) {
+      [modeSelected, modeAB, unitMM, unitIN, snapBtn, isolateBtn, hideBtn, showAllBtn].forEach((el) => { el.disabled = !enabled; });
+      if (!enabled) measureBtn.disabled = true;
+      openBtn.disabled = !state.occt;
     }
 
     function applySelection(mesh) {
@@ -843,48 +759,61 @@ Axis helper:
         state.selectedMesh.material.color.copy(state.selectedMesh.userData.originalColor);
       }
       state.selectedMesh = mesh;
-      if (mesh && mesh.material) {
-        mesh.material.color.set(0xff8a00);
-      }
+      if (mesh && mesh.material) mesh.material.color.set(0xff8a00);
     }
 
     function hideMesh(mesh) {
       if (!mesh) return;
       mesh.visible = false;
-      if (state.selectedMesh === mesh) {
-        applySelection(null);
-      }
+      if (state.selectedMesh === mesh) applySelection(null);
       updateGlobalBounds();
-      renderPartsList();
       renderer.render(scene, camera);
+    }
+
+    function askHideConfirm(partName) {
+      return new Promise((resolve) => {
+        confirmText.textContent = `Hide this part?\n\n${partName}`;
+        confirmOverlay.style.display = 'flex';
+
+        const cleanup = () => {
+          confirmOverlay.style.display = 'none';
+          confirmYesBtn.removeEventListener('click', onYes);
+          confirmNoBtn.removeEventListener('click', onNo);
+          confirmOverlay.removeEventListener('click', onOverlayClick);
+        };
+        const onYes = () => { cleanup(); resolve(true); };
+        const onNo = () => { cleanup(); resolve(false); };
+        const onOverlayClick = (e) => { if (e.target === confirmOverlay) onNo(); };
+
+        confirmYesBtn.addEventListener('click', onYes);
+        confirmNoBtn.addEventListener('click', onNo);
+        confirmOverlay.addEventListener('click', onOverlayClick);
+      });
     }
 
     async function initOcct() {
       try {
         const locateBase = './vendor/';
-        state.occt = await window.occtimportjs({
-          locateFile: (file) => locateBase + file
-        });
-        setStatus('3D engine ready. Open a STEP file.', true);
+        state.occt = await window.occtimportjs({ locateFile: (file) => locateBase + file });
+        setStatus('Ready. Open a STEP file.');
+        setUiEnabled(false);
+        openBtn.disabled = false;
       } catch (err) {
         console.error(err);
-        setStatus('3D engine failed to load (offline libs).');
-        resultEl.textContent = [
-          'STARTUP ERROR',
-          '- Failed to load STEP engine',
-          '- Check local vendor files',
-          '- Missing JS/WASM in ./vendor'
-        ].join('\n');
+        setStatus('3D engine failed to load (check local vendor files).');
+        setMeasure(['STARTUP ERROR', 'Missing JS/WASM in ./vendor']);
       }
     }
 
     async function loadStepFile(file) {
       if (!state.occt) {
-        setStatus('Engine not ready. If this persists, CDN is likely blocked.');
+        setStatus('Engine not ready.');
         return;
       }
+
       setStatus('Reading STEP file...');
       clearModel();
+
       let result = null;
       try {
         const arr = new Uint8Array(await file.arrayBuffer());
@@ -897,19 +826,15 @@ Axis helper:
       } catch (err) {
         console.error(err);
         setStatus('STEP read error.');
-        resultEl.textContent = [
-          'READ ERROR',
-          `File: ${file.name}`,
-          'This parser cannot read this STEP file.',
-          'Try another STEP file or desktop build.'
-        ].join('\n');
-        enableControls(false);
+        setMeasure(['READ ERROR', `File: ${file.name}`]);
+        setUiEnabled(false);
         return;
       }
 
       if (!result || !result.success || !Array.isArray(result.meshes) || result.meshes.length === 0) {
-        setStatus('Read failed: STEP is unsupported or empty.');
-        enableControls(false);
+        setStatus('Read failed: STEP unsupported or empty.');
+        setMeasure(['NO GEOMETRY', `File: ${file.name}`]);
+        setUiEnabled(false);
         return;
       }
 
@@ -922,63 +847,43 @@ Axis helper:
 
       if (!state.meshes.length) {
         setStatus('File read, but no displayable geometry.');
-        resultEl.textContent = [
-          'NO GEOMETRY',
-          `File: ${file.name}`,
-          'File read succeeded, but no usable triangles were found.'
-        ].join('\n');
-        enableControls(false);
+        setMeasure(['NO GEOMETRY', `File: ${file.name}`]);
+        setUiEnabled(false);
         return;
       }
 
       updateGlobalBounds();
       fitAll();
-
       state.fileName = file.name;
-      fileInfoEl.textContent = `${file.name} | ${state.meshes.length} part(s)`;
-      setStatus('File loaded. You can rotate/zoom/measure.', true);
-      renderPartsList();
-      enableControls(true);
+      setStatus(`${file.name} | ${state.meshes.length} part(s)`);
+      setMode('selected');
+      setUnit('mm');
+      setSnap(true);
+      setUiEnabled(true);
+      setGlobal(measureGlobal());
+      setMeasure('Select a part to display measurements.');
     }
 
     function measureGlobal() {
-      if (!state.bounds) return 'Model is empty.';
+      if (!state.bounds) return ['Model is empty.'];
       const size = state.bounds.getSize(new THREE.Vector3());
       const diag = Math.sqrt(size.x ** 2 + size.y ** 2 + size.z ** 2);
-      return [
-        `Type: Global`,
-        `X: ${formatLength(size.x)}`,
-        `Y: ${formatLength(size.y)}`,
-        `Z: ${formatLength(size.z)}`,
-        `Diagonal: ${formatLength(diag)}`
-      ].join('\n');
+      return ['Global', `X: ${formatLength(size.x)}`, `Y: ${formatLength(size.y)}`, `Z: ${formatLength(size.z)}`, `Diagonal: ${formatLength(diag)}`];
     }
 
     function measureSelected() {
-      if (!state.selectedMesh) {
-        return 'Selection required: click a part in the 3D view, then click Measure again.';
-      }
+      if (!state.selectedMesh) return ['Select a part first.'];
       const box = new THREE.Box3().setFromObject(state.selectedMesh);
       const size = box.getSize(new THREE.Vector3());
       const diag = Math.sqrt(size.x ** 2 + size.y ** 2 + size.z ** 2);
       const name = state.selectedMesh.userData.partName || 'Part';
-      return [
-        'Type: Selected part',
-        `Name: ${name}`,
-        `X: ${formatLength(size.x)}`,
-        `Y: ${formatLength(size.y)}`,
-        `Z: ${formatLength(size.z)}`,
-        `Diagonal: ${formatLength(diag)}`
-      ].join('\n');
+      return [`Selected: ${name}`, `X: ${formatLength(size.x)}`, `Y: ${formatLength(size.y)}`, `Z: ${formatLength(size.z)}`, `Diagonal: ${formatLength(diag)}`];
     }
 
-    function formatPointToPointResult() {
-      if (!state.pointA || !state.pointB) return 'Pick two points in the 3D model.';
+    function measurePointToPoint() {
+      if (!state.pointA || !state.pointB) return ['Pick A then B in 3D.'];
       const dist = state.pointA.distanceTo(state.pointB);
-      return [
-        'Type: Point A -> Point B',
-        `Distance: ${formatLength(dist)}`
-      ].join('\n');
+      return ['Point A -> B', `Distance: ${formatLength(dist)}`];
     }
 
     function pickHitFromEvent(evt) {
@@ -1014,62 +919,131 @@ Axis helper:
       return vc;
     }
 
+    renderer.domElement.addEventListener('mouseup', (evt) => {
+      if (evt.button !== 2) return;
+      if (isDrag(evt, 5)) return;
+      if (!state.meshes.length) return;
+      const hit = pickHitFromEvent(evt);
+      if (!hit || !hit.object || !hit.object.visible) return;
+      const partName = hit.object.userData.partName || 'Part';
+      askHideConfirm(partName).then((ok) => {
+        if (!ok) {
+          setStatus('Hide canceled.');
+          return;
+        }
+        hideMesh(hit.object);
+        setStatus(`Part hidden: ${partName}`);
+      });
+    });
 
+    renderer.domElement.addEventListener('click', (evt) => {
+      if (!state.meshes.length) return;
+      if (isDrag(evt, 5)) return;
+      const hit = pickHitFromEvent(evt);
+      if (!hit) return;
+      const point = snappedPointFromHit(hit);
+      if (!point) return;
+
+      if (state.pickMode) {
+        if (state.pickStage === 1) {
+          state.pointA = point;
+          state.pointB = null;
+          clearMeasurementVisuals();
+          addPointMarker(state.pointA, 0x2ec4b6);
+          state.pickStage = 2;
+          setMeasure(['Point A set', 'Click point B']);
+          setStatus('Point A captured.');
+          return;
+        }
+        if (state.pickStage === 2) {
+          state.pointB = point;
+          addPointMarker(state.pointB, 0xff6b6b);
+          addDistanceLine(state.pointA, state.pointB);
+          state.pickMode = false;
+          state.pickStage = 0;
+          setMeasure(measurePointToPoint());
+          setStatus('Point-to-point done.');
+          return;
+        }
+      }
+
+      applySelection(hit.object);
+      setStatus(`Selected: ${hit.object.userData.partName || 'Part'}`);
+      if (state.measureMode === 'selected') {
+        setMeasure(measureSelected());
+      }
+    });
+
+    openBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
       await loadStepFile(file);
     });
 
-    isolateSelectedBtn.addEventListener('click', () => {
+    modeSelected.addEventListener('click', () => setMode('selected'));
+    modeAB.addEventListener('click', () => setMode('point_to_point'));
+
+    unitMM.addEventListener('click', () => {
+      setUnit('mm');
+      setGlobal(measureGlobal());
+      if (state.measureMode === 'selected' && state.selectedMesh) setMeasure(measureSelected());
+      if (!state.pickMode && state.pointA && state.pointB) setMeasure(measurePointToPoint());
+    });
+    unitIN.addEventListener('click', () => {
+      setUnit('inch');
+      setGlobal(measureGlobal());
+      if (state.measureMode === 'selected' && state.selectedMesh) setMeasure(measureSelected());
+      if (!state.pickMode && state.pointA && state.pointB) setMeasure(measurePointToPoint());
+    });
+
+    snapBtn.addEventListener('click', () => setSnap(!state.snapToVertex));
+
+    isolateBtn.addEventListener('click', () => {
       if (!state.selectedMesh) {
-        setStatus('Select a part first, then click Isolate selected.');
+        setStatus('Select a part first, then Isolate.');
         return;
       }
       state.meshes.forEach((m) => { m.visible = (m === state.selectedMesh); });
       updateGlobalBounds();
-      renderPartsList();
       renderer.render(scene, camera);
-      setStatus('Selected part isolated.', true);
+      setStatus('Selected part isolated.');
+    });
+
+    hideBtn.addEventListener('click', () => {
+      if (!state.selectedMesh) {
+        setStatus('Select a part first, then Hide.');
+        return;
+      }
+      const selectedName = state.selectedMesh.userData.partName || 'Part';
+      hideMesh(state.selectedMesh);
+      setStatus(`Part hidden: ${selectedName}`);
     });
 
     showAllBtn.addEventListener('click', () => {
       state.meshes.forEach((m) => { m.visible = true; });
       updateGlobalBounds();
-      renderPartsList();
       renderer.render(scene, camera);
-      setStatus('All parts are visible.', true);
+      setStatus('All parts visible.');
     });
 
     measureBtn.addEventListener('click', () => {
-      const mode = measureMode.value;
-      if (mode === 'global') {
-        resetPointToPoint();
-        resultEl.textContent = measureGlobal();
-        return;
-      }
-      if (mode === 'selected') {
-        resetPointToPoint();
-        resultEl.textContent = measureSelected();
-        return;
-      }
-      // point_to_point
+      if (state.measureMode !== 'point_to_point') return;
+
       resetPointToPoint();
       state.pickMode = true;
       state.pickStage = 1;
-      resultEl.textContent = 'Point-to-point mode: click Point A in the 3D view.';
-      setStatus('Point-to-point mode active. Click point A.', true);
+      setMeasure(['A-B mode', 'Click point A in 3D']);
+      setStatus('Point-to-point mode active.');
     });
 
-    snapVertex.addEventListener('change', () => {
-      state.snapToVertex = !!snapVertex.checked;
+    window.addEventListener('error', (ev) => {
+      setStatus('Blocking JavaScript error.');
+      setMeasure(`JS ERROR: ${ev.message || 'unknown'}`);
     });
 
-    unitMode.addEventListener('change', () => {
-      state.unit = unitMode.value === 'inch' ? 'inch' : 'mm';
-    });
-
-    enableControls(false);
+    setUiEnabled(false);
+    setMeasure('Open a STEP file to start.');
     initOcct();
   </script>
 </body>
