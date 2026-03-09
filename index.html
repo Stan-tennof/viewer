@@ -181,7 +181,7 @@
       margin: 0;
       font-size: 24px;
       line-height: 1.35;
-      color: rgba(124, 142, 160, 0.26);
+      color: rgba(124, 142, 160, 0.42);
       white-space: pre-line;
     }
 
@@ -356,11 +356,6 @@
       .unit-float { top: 548px; right: 33px; width: 170px; }
       .mode-group { bottom: 12px; width: 300px; }
       .mini-guide { top: 8px; max-width: 240px; }
-      .side-tools {
-        top: auto;
-        bottom: 180px;
-        transform: none;
-      }
       .status-pill { max-width: 85vw; }
     }
   </style>
@@ -486,6 +481,8 @@ Selected mode: click a part to display measurements
     const showAllBtn = document.getElementById('showAllBtn');
     const snapshotDimsBtn = document.getElementById('snapshotDimsBtn');
     const snapshotBtn = document.getElementById('snapshotBtn');
+    const sideTools = document.querySelector('.side-tools');
+    const miniGuide = document.querySelector('.mini-guide');
     const axisWidget = document.getElementById('axisWidget');
     const axisLabelX = document.getElementById('axisLabelX');
     const axisLabelY = document.getElementById('axisLabelY');
@@ -650,12 +647,27 @@ Selected mode: click a part to display measurements
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
 
+    function layoutSideTools() {
+      if (!sideTools || !miniGuide) return;
+      const viewportRect = viewport.getBoundingClientRect();
+      const guideRect = miniGuide.getBoundingClientRect();
+      const toolsHeight = sideTools.offsetHeight || 0;
+      const minCenterY = (guideRect.bottom - viewportRect.top) + 16 + (toolsHeight / 2);
+      const preferredCenterY = viewportRect.height * 0.5;
+      const maxCenterY = viewportRect.height - 16 - (toolsHeight / 2);
+      const safeCenterY = Math.max(minCenterY, Math.min(preferredCenterY, maxCenterY));
+      sideTools.style.top = `${Math.round(safeCenterY)}px`;
+      sideTools.style.bottom = 'auto';
+      sideTools.style.transform = 'translateY(-50%)';
+    }
+
     function resize() {
       const w = viewport.clientWidth;
       const h = viewport.clientHeight;
       camera.aspect = w / Math.max(1, h);
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      layoutSideTools();
     }
     window.addEventListener('resize', resize);
     resize();
