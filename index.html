@@ -91,7 +91,33 @@
       bottom: 12px;
       transform: translateX(-50%);
       z-index: 5;
-      width: 330px;
+      width: 360px;
+    }
+    .mode-help {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      z-index: 5;
+      width: 460px;
+      padding: 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      color: rgba(124, 142, 160, 0.30);
+      font-size: 18px;
+      line-height: 1.35;
+      font-family: "Segoe UI", Inter, system-ui, sans-serif;
+      backdrop-filter: none;
+      white-space: pre;
+    }
+    .help-float {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 6;
+    }
+    .guide-hidden {
+      display: none !important;
     }
     .group-right {
       margin-left: auto;
@@ -271,13 +297,16 @@
     .mode-row-single {
       grid-template-columns: 1fr;
     }
+    .mode-row-2 {
+      grid-template-columns: 1fr 1fr;
+    }
     .mode-row-4 {
       grid-template-columns: repeat(4, 1fr);
     }
     .mode-group .mode-row .btn {
       width: 100%;
-      padding: 12px 10px;
-      font-size: 16px;
+      padding: 10px 8px;
+      font-size: 14px;
       border-radius: 11px;
     }
     .measure-inline {
@@ -354,8 +383,10 @@
       .measure-hud { top: 336px; right: 8px; max-width: 74vw; min-width: 220px; }
       .global-hud { top: 146px; right: 8px; max-width: 74vw; min-width: 220px; }
       .unit-float { top: 548px; right: 33px; width: 170px; }
-      .mode-group { bottom: 12px; width: 300px; }
+      .mode-group { bottom: 12px; width: 320px; }
+      .mode-help { left: 8px; bottom: 12px; width: 360px; }
       .mini-guide { top: 8px; max-width: 240px; }
+      .help-float { top: 8px; right: 8px; }
       .status-pill { max-width: 85vw; }
     }
   </style>
@@ -370,6 +401,7 @@
       <input id="fileInput" type="file" accept=".step,.stp" />
 
     </div>
+    <button id="helpBtn" class="btn ghost help-float">Help</button>
     <div class="mini-guide">
       <div class="mini-guide-title">Quick Guide</div>
       <p class="mini-guide-text">Open STEP
@@ -378,7 +410,7 @@ Right drag: pan
 Wheel: zoom
 Right click: hide part
 Selected mode: click a part to display measurements
-2 points mode: choose Free/X/Y/Z, click Measure, then pick A and B</p>
+2 points mode: choose Free/X/Y/Z, click Measure, pick A and B, drag A/B to adjust</p>
     </div>
     <div class="side-tools">
       <button id="isolateBtn" class="btn" disabled>Isolate</button>
@@ -411,10 +443,15 @@ Selected mode: click a part to display measurements
         <button id="conY" class="btn" disabled>Y</button>
         <button id="conZ" class="btn" disabled>Z</button>
       </div>
-      <div class="mode-row mode-row-single">
+      <div class="mode-row mode-row-2">
         <button id="measureBtn" class="btn measure-inline" disabled>Measure</button>
+        <button id="clearMeasureBtn" class="btn ghost" disabled>Clear</button>
       </div>
     </div>
+    <div class="mode-help">1) Selected: click part for measurement
+2) 2 points: click Measure, pick A, then B
+3) Drag A or B to adjust
+4) Clear resets points</div>
 
     <div id="axisWidget" aria-hidden="true">
       <span id="axisLabelX" class="axis-label">X</span>
@@ -453,11 +490,15 @@ Selected mode: click a part to display measurements
       pickStage: 0,
       pointA: null,
       pointB: null,
+      markerA: null,
+      markerB: null,
+      pointDrag: null,
       snapToVertex: true,
       axisConstraint: 'none',
       unit: 'mm',
       measureMode: 'selected',
-      snapshotIncludeDims: true
+      snapshotIncludeDims: true,
+      helpVisible: false
     };
 
     const viewport = document.getElementById('viewport');
@@ -466,9 +507,11 @@ Selected mode: click a part to display measurements
     const globalText = document.getElementById('globalText');
     const fileInput = document.getElementById('fileInput');
     const openBtn = document.getElementById('openBtn');
+    const helpBtn = document.getElementById('helpBtn');
     const modeSelected = document.getElementById('modeSelected');
     const modeAB = document.getElementById('modeAB');
     const measureBtn = document.getElementById('measureBtn');
+    const clearMeasureBtn = document.getElementById('clearMeasureBtn');
     const unitMM = document.getElementById('unitMM');
     const unitIN = document.getElementById('unitIN');
     const snapBtn = document.getElementById('snapBtn');
@@ -483,6 +526,8 @@ Selected mode: click a part to display measurements
     const snapshotBtn = document.getElementById('snapshotBtn');
     const sideTools = document.querySelector('.side-tools');
     const miniGuide = document.querySelector('.mini-guide');
+    const modeGroup = document.querySelector('.mode-group');
+    const modeHelp = document.querySelector('.mode-help');
     const axisWidget = document.getElementById('axisWidget');
     const axisLabelX = document.getElementById('axisLabelX');
     const axisLabelY = document.getElementById('axisLabelY');
@@ -544,9 +589,12 @@ Selected mode: click a part to display measurements
       resetPointToPoint();
       if (mode === 'point_to_point') {
         measureBtn.disabled = false;
+        clearMeasureBtn.disabled = false;
         setStatus('Mode: A-B');
+        setMeasure(['2 points mode', 'Click Measure to start Step 1']);
       } else {
         measureBtn.disabled = true;
+        clearMeasureBtn.disabled = true;
         setStatus('Mode: selected');
         if (state.selectedMesh) setMeasure(measureSelected());
         else setMeasure('Select a part to display measurements.');
@@ -576,6 +624,16 @@ Selected mode: click a part to display measurements
       state.snapshotIncludeDims = !!enabled;
       snapshotDimsBtn.classList.toggle('active', state.snapshotIncludeDims);
       snapshotDimsBtn.textContent = state.snapshotIncludeDims ? 'Dims ON' : 'Dims OFF';
+    }
+
+    function setHelpVisible(enabled) {
+      state.helpVisible = !!enabled;
+      miniGuide.classList.toggle('guide-hidden', !state.helpVisible);
+      modeHelp.classList.toggle('guide-hidden', !state.helpVisible);
+      helpBtn.classList.toggle('active', state.helpVisible);
+      helpBtn.textContent = state.helpVisible ? 'Hide Help' : 'Help';
+      layoutSideTools();
+      layoutModeHelp();
     }
 
     function applyAxisConstraint(point) {
@@ -643,6 +701,7 @@ Selected mode: click a part to display measurements
     scene.add(rootGroup);
     const measurementGroup = new THREE.Group();
     scene.add(measurementGroup);
+    let snapPreview = null;
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
@@ -650,15 +709,50 @@ Selected mode: click a part to display measurements
     function layoutSideTools() {
       if (!sideTools || !miniGuide) return;
       const viewportRect = viewport.getBoundingClientRect();
-      const guideRect = miniGuide.getBoundingClientRect();
       const toolsHeight = sideTools.offsetHeight || 0;
-      const minCenterY = (guideRect.bottom - viewportRect.top) + 16 + (toolsHeight / 2);
+      let minCenterY = 16 + (toolsHeight / 2);
+      if (state.helpVisible) {
+        const guideRect = miniGuide.getBoundingClientRect();
+        minCenterY = (guideRect.bottom - viewportRect.top) + 16 + (toolsHeight / 2);
+      }
       const preferredCenterY = viewportRect.height * 0.5;
       const maxCenterY = viewportRect.height - 16 - (toolsHeight / 2);
       const safeCenterY = Math.max(minCenterY, Math.min(preferredCenterY, maxCenterY));
       sideTools.style.top = `${Math.round(safeCenterY)}px`;
       sideTools.style.bottom = 'auto';
       sideTools.style.transform = 'translateY(-50%)';
+    }
+
+    function layoutModeHelp() {
+      if (!modeHelp || !modeGroup) return;
+      if (!state.helpVisible) return;
+      const viewportRect = viewport.getBoundingClientRect();
+      const groupRect = modeGroup.getBoundingClientRect();
+      const baseBottom = parseFloat(window.getComputedStyle(modeGroup).bottom) || 12;
+      const gap = 0;
+      const shiftRight = 16;
+      const maxWidth = Math.max(220, viewportRect.width - 24);
+      const targetWidth = Math.min(460, maxWidth);
+
+      modeHelp.style.width = `${targetWidth}px`;
+      modeHelp.style.transform = 'none';
+      modeHelp.style.fontSize = viewportRect.width < 1100 ? '18px' : '22px';
+
+      const helpWidth = modeHelp.offsetWidth || targetWidth;
+      const helpHeight = modeHelp.offsetHeight || 0;
+      const groupHeight = modeGroup.offsetHeight || 0;
+      const centeredBottom = Math.max(12, Math.round(baseBottom + ((groupHeight - helpHeight) / 2)));
+      modeHelp.style.bottom = `${centeredBottom}px`;
+      const leftOfGroup = (groupRect.left - viewportRect.left) - helpWidth - gap;
+
+      if (leftOfGroup >= 12) {
+        modeHelp.style.left = `${Math.round(leftOfGroup + shiftRight)}px`;
+        return;
+      }
+
+      modeHelp.style.left = `${Math.round((groupRect.left + groupRect.right) / 2 - viewportRect.left)}px`;
+      modeHelp.style.transform = 'translateX(-50%)';
+      modeHelp.style.bottom = `${Math.round(baseBottom + modeGroup.offsetHeight + 10)}px`;
     }
 
     function resize() {
@@ -668,6 +762,7 @@ Selected mode: click a part to display measurements
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
       layoutSideTools();
+      layoutModeHelp();
     }
     window.addEventListener('resize', resize);
     resize();
@@ -684,6 +779,19 @@ Selected mode: click a part to display measurements
     confirmOverlay.addEventListener('contextmenu', (e) => e.preventDefault());
 
     renderer.domElement.addEventListener('mousedown', (e) => {
+      if (e.button === 0 && state.measureMode === 'point_to_point' && state.pointA && state.pointB) {
+        const markerHit = pickPointMarkerFromEvent(e);
+        if (markerHit) {
+          state.pointDrag = markerHit.object.userData?.pointKey || null;
+          dragMode = null;
+          lastX = e.clientX;
+          lastY = e.clientY;
+          mouseDownX = e.clientX;
+          mouseDownY = e.clientY;
+          setStatus(`Dragging point ${state.pointDrag || ''}`.trim());
+          return;
+        }
+      }
       if (e.button === 0) dragMode = 'rotate';
       else if (e.button === 2) dragMode = 'pan';
       else return;
@@ -693,9 +801,27 @@ Selected mode: click a part to display measurements
       mouseDownY = e.clientY;
     });
 
-    window.addEventListener('mouseup', () => { dragMode = null; });
+    window.addEventListener('mouseup', () => {
+      dragMode = null;
+      if (state.pointDrag) {
+        state.pointDrag = null;
+        setStatus('Point moved.');
+      }
+    });
 
     window.addEventListener('mousemove', (e) => {
+      if (state.pointDrag) {
+        const hit = pickHitFromEvent(e);
+        if (!hit || !hit.object || !hit.object.visible) return;
+        let point = snappedPointFromHit(hit, e);
+        if (!point) return;
+        if (state.pointDrag === 'B') point = applyAxisConstraint(point);
+        if (state.pointDrag === 'A') state.pointA = point;
+        if (state.pointDrag === 'B') state.pointB = point;
+        rebuildPointToPointVisuals();
+        setMeasure(measurePointToPoint());
+        return;
+      }
       if (!dragMode) return;
       const dx = e.clientX - lastX;
       const dy = e.clientY - lastY;
@@ -774,11 +900,15 @@ Selected mode: click a part to display measurements
         if (child.geometry) child.geometry.dispose();
         if (child.material) child.material.dispose();
       }
+      state.markerA = null;
+      state.markerB = null;
+      snapPreview = null;
     }
 
     function resetPointToPoint() {
       state.pickMode = false;
       state.pickStage = 0;
+      state.pointDrag = null;
       state.pointA = null;
       state.pointB = null;
       clearMeasurementVisuals();
@@ -790,12 +920,55 @@ Selected mode: click a part to display measurements
       const marker = new THREE.Mesh(geom, mat);
       marker.position.copy(position);
       measurementGroup.add(marker);
+      return marker;
     }
 
     function addDistanceLine(start, end) {
       const geom = new THREE.BufferGeometry().setFromPoints([start, end]);
       const mat = new THREE.LineBasicMaterial({ color: 0xffd166 });
       measurementGroup.add(new THREE.Line(geom, mat));
+    }
+
+    function rebuildPointToPointVisuals() {
+      clearMeasurementVisuals();
+      if (state.pointA) {
+        state.markerA = addPointMarker(state.pointA, 0x2ec4b6);
+        state.markerA.userData.pointKey = 'A';
+      }
+      if (state.pointB) {
+        state.markerB = addPointMarker(state.pointB, 0xff6b6b);
+        state.markerB.userData.pointKey = 'B';
+      }
+      if (state.pointA && state.pointB) addDistanceLine(state.pointA, state.pointB);
+    }
+
+    function pickPointMarkerFromEvent(evt) {
+      const markers = [];
+      if (state.markerA) markers.push(state.markerA);
+      if (state.markerB) markers.push(state.markerB);
+      if (!markers.length) return null;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((evt.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      return raycaster.intersectObjects(markers, false)[0] || null;
+    }
+
+    function showSnapPreview(position) {
+      if (!position) return;
+      if (!snapPreview) {
+        const geom = new THREE.SphereGeometry(Math.max(0.8, cameraCtrl.radius * 0.009), 16, 16);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x9bdcff, emissive: 0x9bdcff, emissiveIntensity: 0.22, transparent: true, opacity: 0.8 });
+        snapPreview = new THREE.Mesh(geom, mat);
+        measurementGroup.add(snapPreview);
+      }
+      snapPreview.position.copy(position);
+      snapPreview.visible = true;
+    }
+
+    function hideSnapPreview() {
+      if (snapPreview) snapPreview.visible = false;
     }
 
     function colorFrom(meshData) {
@@ -886,11 +1059,15 @@ Selected mode: click a part to display measurements
       const box = new THREE.Box3();
       state.meshes.forEach((m) => { if (m.visible) box.expandByObject(m); });
       state.bounds = box.isEmpty() ? null : box;
+      setGlobal(measureGlobal());
     }
 
     function setUiEnabled(enabled) {
       [modeSelected, modeAB, unitMM, unitIN, snapBtn, conNone, conX, conY, conZ, isolateBtn, hideBtn, showAllBtn, snapshotDimsBtn, snapshotBtn].forEach((el) => { el.disabled = !enabled; });
-      if (!enabled) measureBtn.disabled = true;
+      if (!enabled) {
+        measureBtn.disabled = true;
+        clearMeasureBtn.disabled = true;
+      }
       openBtn.disabled = !state.occt;
     }
 
@@ -1087,7 +1264,7 @@ Selected mode: click a part to display measurements
       if (!state.bounds) return ['Model is empty.'];
       const size = state.bounds.getSize(new THREE.Vector3());
       const diag = Math.sqrt(size.x ** 2 + size.y ** 2 + size.z ** 2);
-      return ['Global', `X: ${formatLength(size.x)}`, `Y: ${formatLength(size.y)}`, `Z: ${formatLength(size.z)}`, `Diagonal: ${formatLength(diag)}`];
+      return [`X: ${formatLength(size.x)}`, `Y: ${formatLength(size.y)}`, `Z: ${formatLength(size.z)}`, `Diagonal: ${formatLength(diag)}`];
     }
 
     function measureSelected() {
@@ -1113,7 +1290,7 @@ Selected mode: click a part to display measurements
       return raycaster.intersectObjects(state.meshes, false)[0] || null;
     }
 
-    function snappedPointFromHit(hit) {
+    function snappedPointFromHit(hit, evt) {
       if (!hit) return null;
       if (!state.snapToVertex) return hit.point.clone();
 
@@ -1121,6 +1298,35 @@ Selected mode: click a part to display measurements
       const posAttr = geom?.attributes?.position;
       const face = hit.face;
       if (!geom || !posAttr || !face) return hit.point.clone();
+
+      if (evt) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        const clickX = evt.clientX - rect.left;
+        const clickY = evt.clientY - rect.top;
+        const radiusPx = 18;
+        const radius2 = radiusPx * radiusPx;
+        const world = new THREE.Vector3();
+        const projected = new THREE.Vector3();
+        let best = null;
+        let bestDist2 = Number.POSITIVE_INFINITY;
+
+        for (let i = 0; i < posAttr.count; i++) {
+          world.fromBufferAttribute(posAttr, i);
+          hit.object.localToWorld(world);
+          projected.copy(world).project(camera);
+          if (projected.z < -1 || projected.z > 1) continue;
+          const sx = (projected.x * 0.5 + 0.5) * rect.width;
+          const sy = (-projected.y * 0.5 + 0.5) * rect.height;
+          const dx = sx - clickX;
+          const dy = sy - clickY;
+          const d2 = (dx * dx) + (dy * dy);
+          if (d2 < bestDist2) {
+            bestDist2 = d2;
+            best = world.clone();
+          }
+        }
+        if (best && bestDist2 <= radius2) return best;
+      }
 
       const va = new THREE.Vector3().fromBufferAttribute(posAttr, face.a);
       const vb = new THREE.Vector3().fromBufferAttribute(posAttr, face.b);
@@ -1137,6 +1343,24 @@ Selected mode: click a part to display measurements
       if (db <= da && db <= dc) return vb;
       return vc;
     }
+
+    renderer.domElement.addEventListener('mousemove', (evt) => {
+      if (!state.pickMode || !state.snapToVertex || dragMode || state.pointDrag) {
+        hideSnapPreview();
+        return;
+      }
+      const hit = pickHitFromEvent(evt);
+      if (!hit || !hit.object || !hit.object.visible) {
+        hideSnapPreview();
+        return;
+      }
+      const preview = snappedPointFromHit(hit, evt);
+      if (!preview) {
+        hideSnapPreview();
+        return;
+      }
+      showSnapPreview(preview);
+    });
 
     renderer.domElement.addEventListener('mouseup', (evt) => {
       if (evt.button !== 2) return;
@@ -1164,31 +1388,35 @@ Selected mode: click a part to display measurements
           applySelection(null);
           if (state.measureMode === 'selected') setMeasure('Select a part to display measurements.');
           setStatus('Selection cleared.');
+        } else {
+          setStatus(state.pickStage === 1 ? 'Step 1: click point A on a part.' : 'Step 2: click point B on a part.');
         }
         return;
       }
-      const point = snappedPointFromHit(hit);
-      if (!point) return;
 
       if (state.pickMode) {
+        const point = snappedPointFromHit(hit, evt);
+        if (!point) {
+          setStatus('Snap point not found. Zoom in and try again.');
+          return;
+        }
         if (state.pickStage === 1) {
           state.pointA = point;
           state.pointB = null;
-          clearMeasurementVisuals();
-          addPointMarker(state.pointA, 0x2ec4b6);
+          rebuildPointToPointVisuals();
           state.pickStage = 2;
-          setMeasure(['Point A set', 'Click point B']);
+          setMeasure(['Step 1 complete: point A set', 'Step 2: click point B']);
           setStatus('Point A captured.');
           return;
         }
         if (state.pickStage === 2) {
           state.pointB = applyAxisConstraint(point);
-          addPointMarker(state.pointB, 0xff6b6b);
-          addDistanceLine(state.pointA, state.pointB);
+          rebuildPointToPointVisuals();
           state.pickMode = false;
           state.pickStage = 0;
+          hideSnapPreview();
           setMeasure(measurePointToPoint());
-          setStatus('Point-to-point done.');
+          setStatus('Point-to-point done. Drag A or B to adjust.');
           return;
         }
       }
@@ -1201,6 +1429,7 @@ Selected mode: click a part to display measurements
     });
 
     openBtn.addEventListener('click', () => fileInput.click());
+    helpBtn.addEventListener('click', () => setHelpVisible(!state.helpVisible));
     fileInput.addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -1270,8 +1499,14 @@ Selected mode: click a part to display measurements
       resetPointToPoint();
       state.pickMode = true;
       state.pickStage = 1;
-      setMeasure(['A-B mode', 'Click point A in 3D']);
-      setStatus('Point-to-point mode active.');
+      setMeasure(['Step 1: click point A', 'Step 2: click point B']);
+      setStatus('Point-to-point mode active. Pick point A.');
+    });
+
+    clearMeasureBtn.addEventListener('click', () => {
+      resetPointToPoint();
+      setMeasure(['2 points mode', 'Click Measure to start Step 1']);
+      setStatus('A-B points cleared.');
     });
 
     window.addEventListener('error', (ev) => {
@@ -1282,6 +1517,7 @@ Selected mode: click a part to display measurements
     setUiEnabled(false);
     setConstraint('none');
     setSnapshotDims(true);
+    setHelpVisible(false);
     setMeasure('Open a STEP file to start.');
     initOcct();
   </script>
